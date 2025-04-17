@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Bulk Messenger</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1, h2 {
+            text-align: center;
+            color: #128C7E;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .instruction {
+            background-color: #E7F3EF;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        textarea {
+            min-height: 120px;
+        }
+        button {
+            background-color: #128C7E;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            display: block;
+            margin: 0 auto;
+        }
+        button:hover {
+            background-color: #075E54;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #message-form {
+            margin-bottom: 20px;
+        }
+        #status-container {
+            margin-top: 20px;
+            display: none;
+        }
+        .status-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        .progress-bar-container {
+            width: 100%;
+            background-color: #f3f3f3;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        .progress-bar {
+            height: 20px;
+            background-color: #128C7E;
+            border-radius: 4px;
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+        }
+        .status-section {
+            margin-top: 15px;
+        }
+        .status-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            padding: 10px;
+            margin-top: 5px;
+            border-radius: 4px;
+        }
+        .success-item {
+            color: #27ae60;
+            margin-bottom: 5px;
+        }
+        .pending-item {
+            color: #3498db;
+            margin-bottom: 5px;
+        }
+        .failed-item {
+            color: #e74c3c;
+            margin-bottom: 5px;
+        }
+        .scheduled-item {
+            color: #9b59b6;
+            margin-bottom: 5px;
+        }
+        .summary {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+        .summary-item {
+            text-align: center;
+        }
+        .summary-number {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .summary-label {
+            font-size: 14px;
+        }
+        .total { color: #3498db; }
+        .success { color: #27ae60; }
+        .failed { color: #e74c3c; }
+        .scheduled { color: #9b59b6; }
+        #preview-numbers {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-top: 10px;
+            display: none;
+        }
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 30px;
+            margin-right: 10px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 30px;
+        }
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .toggle-slider {
+            background-color: #128C7E;
+        }
+        input:checked + .toggle-slider:before {
+            transform: translateX(30px);
+        }
+        .toggle-label {
+            font-weight: bold;
+        }
+        .schedule-container {
+            display: none;
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+        .next-message {
+            font-weight: bold;
+            text-align: center;
+            margin: 10px 0;
+            color: #9b59b6;
+        }
+        .time-indicator {
+            display: flex;
+            align-items: center;
+            margin: 15px 0;
+        }
+        .time-bar {
+            flex-grow: 1;
+            height: 10px;
+            background-color: #f3f3f3;
+            border-radius: 5px;
+            position: relative;
+            overflow: hidden;
+        }
+        .time-progress {
+            height: 100%;
+            background-color: #9b59b6;
+            width: 0%;
+            transition: width 1s linear;
+        }
+        .time-label {
+            font-size: 12px;
+            margin: 0 10px;
+            white-space: nowrap;
+        }
+        #stop-schedule-btn {
+            background-color: #e74c3c;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>WhatsApp Bulk Messenger</h1>
+        
+        <div class="instruction">
+            <p><strong>Instructions:</strong></p>
+            <ol>
+                <li>Upload a text file with phone numbers (one per line with country code, e.g., 12345678901)</li>
+                <li>Enter your message</li>
+                <li>Choose whether to send immediately or spread over 24 hours</li>
+                <li>Open WhatsApp Web in a new tab and login</li>
+                <li>Click "Send Messages" to start the process</li>
+            </ol>
+            <p><strong>Note:</strong> Keep this page open while messages are being sent. You'll see real-time status updates.</p>
+        </div>
+
+        <div id="message-form">
+            <div class="form-group">
+                <label for="numbersFile">Upload file with phone numbers (one per line):</label>
+                <input type="file" id="numbersFile" accept=".txt" required>
+                <button id="preview-btn" style="margin-top: 10px;">Preview Numbers</button>
+                <div id="preview-numbers"></div>
+            </div>
+            <div class="form-group">
+                <label for="message">Message to send:</label>
+                <textarea id="message" placeholder="Enter your message here..." required></textarea>
+            </div>
+
+            <div class="toggle-container">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="schedule-toggle">
+                    <span class="toggle-slider"></span>
+                </label>
+                <span class="toggle-label">Spread messages over 24 hours (max 300 messages)</span>
+            </div>
+
+            <button id="send-btn">Send Messages</button>
+        </div>
+
+        <div id="status-container">
+            <h2>Sending Status</h2>
+            
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progress-bar">0%</div>
+            </div>
+            
+            <div class="status-header">
+                <span id="current-number">Processing: None</span>
+                <span id="progress-text">0/0 (0%)</span>
+            </div>
+            
+            <div class="summary">
+                <div class="summary-item">
+                    <div class="summary-number total" id="total-count">0</div>
+                    <div class="summary-label">Total</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-number success" id="success-count">0</div>
+                    <div class="summary-label">Success</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-number failed" id="failed-count">0</div>
+                    <div class="summary-label">Failed</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-number scheduled" id="scheduled-count">0</div>
+                    <div class="summary-label">Scheduled</div>
+                </div>
+            </div>
+
+            <div id="schedule-container" class="schedule-container">
+                <h3>24-Hour Schedule</h3>
+                <div class="next-message" id="next-message">Next message in: --:--:--</div>
+                <div class="time-indicator">
+                    <div class="time-label" id="start-time">Start</div>
+                    <div class="time-bar">
+                        <div class="time-progress" id="time-progress"></div>
+                    </div>
+                    <div class="time-label" id="end-time">24h</div>
+                </div>
+                <button id="stop-schedule-btn">Stop Schedule</button>
+            </div>
+            
+            <div class="status-section">
+                <h3>Success List</h3>
+                <div class="status-list" id="success-list"></div>
+            </div>
+            
+            <div class="status-section">
+                <h3>Failed List</h3>
+                <div class="status-list" id="failed-list"></div>
+            </div>
+            
+            <div class="status-section" id="scheduled-section" style="display: none;">
+                <h3>Scheduled List</h3>
+                <div class="status-list" id="scheduled-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const previewBtn = document.getElementById('preview-btn');
+            const numbersFileInput = document.getElementById('numbersFile');
+            const previewNumbersDiv = document.getElementById('preview-numbers');
+            const messageTextarea = document.getElementById('message');
+            const sendBtn = document.getElementById('send-btn');
+            const statusContainer = document.getElementById('status-container');
+            const messageForm = document.getElementById('message-form');
+            const scheduleToggle = document.getElementById('schedule-toggle');
+            const scheduleContainer = document.getElementById('schedule-container');
+            const scheduledSection = document.getElementById('scheduled-section');
+            const stopScheduleBtn = document.getElementById('stop-schedule-btn');
+            
+            // Status elements
+            const progressBar = document.getElementById('progress-bar');
+            const progressText = document.getElementById('progress-text');
+            const currentNumber = document.getElementById('current-number');
+            const totalCount = document.getElementById('total-count');
+            const successCount = document.getElementById('success-count');
+            const failedCount = document.getElementById('failed-count');
+            const scheduledCount = document.getElementById('scheduled-count');
+            const successList = document.getElementById('success-list');
+            const failedList = document.getElementById('failed-list');
+            const scheduledList = document.getElementById('scheduled-list');
+            const nextMessage = document.getElementById('next-message');
+            const timeProgress = document.getElementById('time-progress');
+            const startTime = document.getElementById('start-time');
+            const endTime = document.getElementById('end-time');
+            
+            let phoneNumbers = [];
+            let successNumbers = [];
+            let failedNumbers = [];
+            let scheduledNumbers = [];
+            let scheduleIntervals = [];
+            let scheduleStartTime = null;
+            let scheduleEndTime = null;
+            let isScheduleStopped = false;
+            
+            // Maximum allowed messages for 24-hour schedule
+            const MAX_SCHEDULED_MESSAGES = 300;
+            
+            // Schedule toggle handler
+            scheduleToggle.addEventListener('change', function() {
+                if (this.checked) {
+                    scheduledSection.style.display = 'block';
+                } else {
+                    scheduledSection.style.display = 'none';
+                }
+            });
+            
+            // Stop schedule button handler
+            stopScheduleBtn.addEventListener('click', function() {
+                if (confirm('Are you sure you want to stop the scheduled messages?')) {
+                    isScheduleStopped = true;
+                    clearAllSchedules();
+                    this.disabled = true;
+                    this.textContent = 'Schedule Stopped';
+                    nextMessage.textContent = 'Scheduled messaging stopped';
+                }
+            });
+            
+            // Preview numbers button click
+            previewBtn.addEventListener('click', function() {
+                const file = numbersFileInput.files[0];
+                if (!file) {
+                    alert('Please upload a file first');
+                    return;
+                }
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const content = e.target.result;
+                    phoneNumbers = parsePhoneNumbers(content);
+                    
+                    if (phoneNumbers.length === 0) {
+                        previewNumbersDiv.innerHTML = '<p>No valid phone numbers found in the file.</p>';
+                    } else {
+                        let html = `<p>Found ${phoneNumbers.length} phone numbers:</p><ul>`;
+                        phoneNumbers.forEach(number => {
+                            html += `<li>${number}</li>`;
+                        });
+                        html += '</ul>';
+                        previewNumbersDiv.innerHTML = html;
+                    }
+                    
+                    previewNumbersDiv.style.display = 'block';
+                    
+                    // Update counts
+                    totalCount.textContent = phoneNumbers.length;
+                    
+                    // Warn if too many numbers for schedule mode
+                    if (phoneNumbers.length > MAX_SCHEDULED_MESSAGES) {
+                        alert(`Warning: You have ${phoneNumbers.length} numbers, but scheduled sending is limited to ${MAX_SCHEDULED_MESSAGES} messages in 24 hours. If you continue with scheduling, only the first ${MAX_SCHEDULED_MESSAGES} numbers will be processed.`);
+                    }
+                };
+                reader.readAsText(file);
+            });
+            
+            // Send button click
+            sendBtn.addEventListener('click', async function() {
+                const file = numbersFileInput.files[0];
+                const message = messageTextarea.value.trim();
+                
+                if (!file) {
+                    alert('Please upload a file with phone numbers.');
+                    return;
+                }
+                
+                if (!message) {
+                    alert('Please enter a message to send.');
+                    return;
+                }
+                
+                // Check if WhatsApp Web is open
+                if (!confirm('Make sure you have WhatsApp Web open and logged in in another tab. Continue?')) {
+                    return;
+                }
+                
+                // If preview not done yet, read the file
+                if (phoneNumbers.length === 0) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const content = e.target.result;
+                        phoneNumbers = parsePhoneNumbers(content);
+                        
+                        if (scheduleToggle.checked) {
+                            startScheduledSending(phoneNumbers, message);
+                        } else {
+                            startImmediateSending(phoneNumbers, message);
+                        }
+                    };
+                    reader.readAsText(file);
+                } else {
+                    if (scheduleToggle.checked) {
+                        startScheduledSending(phoneNumbers, message);
+                    } else {
+                        startImmediateSending(phoneNumbers, message);
+                    }
+                }
+            });
+            
+            // Parse phone numbers from file content
+            function parsePhoneNumbers(content) {
+                return content.split(/\r?\n/)
+                    .map(line => line.trim())
+                    .filter(line => line.length > 0 && /^\d+$/.test(line));
+            }
+            
+            // Start immediate sending of messages
+            async function startImmediateSending(numbers, message) {
+                if (numbers.length === 0) {
+                    alert('No valid phone numbers found.');
+                    return;
+                }
+                
+                setupSendingUI(numbers.length);
+                
+                // Disable inputs during sending
+                disableInputs(true);
+                
+                for (let i = 0; i < numbers.length; i++) {
+                    const number = numbers[i];
+                    
+                    // Update current number and progress
+                    currentNumber.textContent = `Processing: ${number}`;
+                    
+                    // Send message
+                    const result = await sendWhatsAppMessage(number, message);
+                    
+                    // Update status based on result
+                    updateSendingStatus(number, result, i, numbers.length);
+                }
+                
+                // Final update
+                currentNumber.textContent = 'Processing: Completed';
+                pendingCount.textContent = '0';
+                
+                // Re-enable inputs
+                disableInputs(false);
+            }
+            
+            // Start scheduled sending of messages over 24 hours
+            function startScheduledSending(numbers, message) {
+                if (numbers.length === 0) {
+                    alert('No valid phone numbers found.');
+                    return;
+                }
+                
+                // Limit to MAX_SCHEDULED_MESSAGES
+                const scheduledNumbers = numbers.slice(0, MAX_SCHEDULED_MESSAGES);
+                
+                setupSendingUI(scheduledNumbers.length);
+                
+                // Show schedule container
+                scheduleContainer.style.display = 'block';
+                scheduledSection.style.display = 'block';
+                
+                // Set schedule times
+                scheduleStartTime = new Date();
+                scheduleEndTime = new Date(scheduleStartTime.getTime() + 24 * 60 * 60 * 1000); // 24 hours later
+                
+                // Format and display times
+                startTime.textContent = formatTime(scheduleStartTime);
+                endTime.textContent = formatTime(scheduleEndTime);
+                
+                // Create schedule
+                const schedule = createRandomSchedule(scheduledNumbers, 24 * 60 * 60 * 1000); // 24 hours in ms
+                
+                // Display scheduled numbers
+                scheduledList.innerHTML = '';
+                schedule.forEach((item, index) => {
+                    const scheduledTime = new Date(scheduleStartTime.getTime() + item.delay);
+                    const scheduledItem = document.createElement('div');
+                    scheduledItem.className = 'scheduled-item';
+                    scheduledItem.textContent = `${item.number}: Scheduled for ${formatTime(scheduledTime)} (${formatRelativeTime(item.delay)})`;
+                    scheduledItem.id = `scheduled-item-${index}`;
+                    scheduledList.appendChild(scheduledItem);
+                });
+                
+                scheduledCount.textContent = scheduledNumbers.length;
+                
+                // Disable inputs during scheduling
+                disableInputs(true);
+                
+                // Reset flag
+                isScheduleStopped = false;
+                stopScheduleBtn.disabled = false;
+                stopScheduleBtn.textContent = 'Stop Schedule';
+                
+                // Execute the schedule
+                executeSchedule(schedule, message);
+                
+                // Start progress update timer
+                updateScheduleProgress();
+            }
+            
+            // Create a random schedule for sending messages
+            function createRandomSchedule(numbers, totalDuration) {
+                // Create a schedule with random delays
+                const schedule = [];
+                
+                // Number of chunks to divide the 24-hour period
+                const numberOfChunks = Math.min(12, numbers.length);
+                const chunkDuration = totalDuration / numberOfChunks;
+                
+                // Distribute numbers evenly across chunks, then randomize within each chunk
+                const numbersPerChunk = Math.ceil(numbers.length / numberOfChunks);
+                
+                let numberIndex = 0;
+                
+                for (let i = 0; i < numberOfChunks && numberIndex < numbers.length; i++) {
+                    const chunkStart = i * chunkDuration;
+                    const chunkEnd = (i + 1) * chunkDuration;
+                    
+                    // Determine how many numbers to place in this chunk
+                    const numbersInThisChunk = Math.min(numbersPerChunk, numbers.length - numberIndex);
+                    
+                    // Create delays within this chunk
+                    for (let j = 0; j < numbersInThisChunk && numberIndex < numbers.length; j++) {
+                        // Random delay within the chunk
+                        const delay = chunkStart + Math.random() * (chunkEnd - chunkStart);
+                        
+                        schedule.push({
+                            number: numbers[numberIndex],
+                            delay: Math.floor(delay)
+                        });
+                        
+                        numberIndex++;
+                    }
+                }
+                
+                // Sort schedule by delay
+                schedule.sort((a, b) => a.delay - b.delay);
+                
+                return schedule;
+            }
+            
+            // Execute the scheduled messages
+            function executeSchedule(schedule, message) {
+                // Clear any existing intervals
+                clearAllSchedules();
+                
+                schedule.forEach((item, index) => {
+                    const timeout = setTimeout(async () => {
+                        if (isScheduleStopped) return;
+                        
+                        // Update current number
+                        currentNumber.textContent = `Processing: ${item.number}`;
+                        
+                        // Send message
+                        const result = await sendWhatsAppMessage(item.number, message);
+                        
+                        // Update status
+                        updateSendingStatus(item.number, result, index, schedule.length);
+                        
+                        // Update scheduled item status
+                        const scheduledItem = document.getElementById(`scheduled-item-${index}`);
+                        if (scheduledItem) {
+                            scheduledItem.classList.remove('scheduled-item');
+                            scheduledItem.classList.add(result.success ? 'success-item' : 'failed-item');
+                            scheduledItem.textContent = `${item.number}: ${result.success ? 'Sent successfully' : 'Failed'} at ${formatTime(new Date())}`;
+                        }
+                        
+                        // Decrement scheduled count
+                        scheduledCount.textContent = (parseInt(scheduledCount.textContent) - 1).toString();
+                        
+                        // Check if all messages are processed
+                        if (parseInt(scheduledCount.textContent) === 0) {
+                            currentNumber.textContent = 'Processing: Completed';
+                            nextMessage.textContent = 'All messages processed';
+                            disableInputs(false);
+                        }
+                    }, item.delay);
+                    
+                    scheduleIntervals.push(timeout);
+                });
+                
+                // Set next message info
+                if (schedule.length > 0) {
+                    updateNextMessageInfo(schedule);
+                }
+            }
+            
+            // Update next message information
+            function updateNextMessageInfo(schedule) {
+                if (schedule.length === 0 || isScheduleStopped) {
+                    nextMessage.textContent = 'No scheduled messages';
+                    return;
+                }
+                
+                // Find the next unprocessed message
+                const now = new Date();
+                const elapsedMs = now.getTime() - scheduleStartTime.getTime();
+                let nextItem = null;
+                
+                for (const item of schedule) {
+                    if (item.delay > elapsedMs) {
+                        nextItem = item;
+                        break;
+                    }
+                }
+                
+                if (nextItem) {
+                    const timeUntilNext = nextItem.delay - elapsedMs;
+                    nextMessage.textContent = `Next message to ${nextItem.number} in: ${formatDuration(timeUntilNext)}`;
+                    
+                    // Schedule next update
+                    setTimeout(() => updateNextMessageInfo(schedule), 1000);
+                } else {
+                    nextMessage.textContent = 'All messages sent or scheduled';
+                }
+            }
+            
+            // Update schedule progress bar
+            function updateScheduleProgress() {
+                if (!scheduleStartTime || !scheduleEndTime || isScheduleStopped) return;
+                
+                const now = new Date();
+                const totalDuration = scheduleEndTime.getTime() - scheduleStartTime.getTime();
+                const elapsedDuration = now.getTime() - scheduleStartTime.getTime();
+                const progressPercent = Math.min(100, (elapsedDuration / totalDuration) * 100);
+                
+                timeProgress.style.width = `${progressPercent}%`;
+                
+                if (progressPercent < 100 && !isScheduleStopped) {
+                    setTimeout(updateScheduleProgress, 60000); // Update every minute
+                }
+            }
+            
+            // Clear all scheduled intervals
+            function clearAllSchedules() {
+                scheduleIntervals.forEach(timeout => clearTimeout(timeout));
+                scheduleIntervals = [];
+            }
+            
+            // Set up UI for sending
+            function setupSendingUI(totalNumbers) {
+                // Reset status
+                successNumbers = [];
+                failedNumbers = [];
+                scheduledNumbers = [];
+                successList.innerHTML = '';
+                failedList.innerHTML = '';
+                scheduledList.innerHTML = '';
+                progressBar.style.width = '0%';
+                progressBar.textContent = '0%';
+                progressText.textContent = `0/${totalNumbers} (0%)`;
+                currentNumber.textContent = 'Processing: None';
+                totalCount.textContent = totalNumbers;
+                successCount.textContent = '0';
+                failedCount.textContent = '0';
+                scheduledCount.textContent = '0';
+                
+                // Show status container and hide form
+                statusContainer.style.display = 'block';
+                
+                if (scheduleToggle.checked) {
+                    scheduleContainer.style.display = 'block';
+                } else {
+                    scheduleContainer.style.display = 'none';
+                }
+            }
+            
+            // Update sending status after each message
+            function updateSendingStatus(number, result, index, total) {
+                if (result.success) {
+                    successNumbers.push(number);
+                    const successItem = document.createElement('div');
+                    successItem.className = 'success-item';
+                    successItem.textContent = `${number}: Message sent successfully`;
+                    successList.appendChild(successItem);
+                    successList.scrollTop = successList.scrollHeight;
+                    successCount.textContent = successNumbers.length;
+                } else {
+                    failedNumbers.push(number);
+                    const failedItem = document.createElement('div');
+                    failedItem.className = 'failed-item';
+                    failedItem.textContent = `${number}: ${result.error || 'Failed to send message'}`;
+                    failedList.appendChild(failedItem);
+                    failedList.scrollTop = failedList.scrollHeight;
+                    failedCount.textContent = failedNumbers.length;
+                }
+                
+                // Update progress bar for immediate sending
+                if (!scheduleToggle.checked) {
+                    const progress = Math.round(((index + 1) / total) * 100);
+                    progressBar.style.width = `${progress}%`;
+                    progressBar.textContent = `${progress}%`;
+                    progressText.textContent = `${index + 1}/${total} (${progress}%)`;
+                }
+            }
+            
+            // Send WhatsApp message
+            async function sendWhatsAppMessage(phoneNumber, message) {
+                try {
+                    // Open WhatsApp Web URL for the number
+                    const whatsappURL = `https://web.whatsapp.com/send?phone=${phoneNumber}&text=${encodeURIComponent(message)}`;
+                    
+                    // Open in a new window
+                    const newWindow = window.open(whatsappURL, '_blank');
+                    
+                    // We can't control the new window due to security restrictions
+                    // Wait some time for user to manually send the message
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                    
+                    // Prompt user to confirm whether the message was sent
+                    const wasSent = confirm(`Was the message to ${phoneNumber} sent successfully? Click OK if sent, Cancel if failed.`);
+                    
+                    // Close the window regardless of success or failure
+                    if (newWindow) {
+                        try {
+                            newWindow.close();
+                        } catch (e) {
+                            console.log('Could not close window:', e);
+                        }
+                    }
+                    
+                    return { success: wasSent };
+                } catch (error) {
+                    console.error(`Error sending message to ${phoneNumber}:`, error);
+                    return { success: false, error: error.message };
+                }
+            }
+            
+            // Format time
+            function formatTime(date) {
+                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+            
+            // Format relative time (e.g., "in 2 hours 30 minutes")
+            function formatRelativeTime(milliseconds) {
+                const hours = Math.floor(milliseconds / (1000 * 60 * 60));
+                const minutes = Math.floor((milliseconds % (1000 * 60 * 60)) / (1000 * 60));
+                
+                if (hours > 0) {
+                    return `in ${hours}h ${minutes}m`;
+                } else {
+                    return `in ${minutes}m`;
+                }
+            }
+            
+            // Format duration for countdown
+            function formatDuration(milliseconds) {
+                const seconds = Math.floor(milliseconds / 1000) % 60;
+                const minutes = Math.floor(milliseconds / (1000 * 60)) % 60;
+                const hours = Math.floor(milliseconds / (1000 * 60 * 60));
+                
+                return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            }
+            
+            // Disable/enable input controls
+            function disableInputs(disable) {
+                numbersFileInput.disabled = disable;
+                messageTextarea.disabled = disable;
+                sendBtn.disabled = disable;
+                previewBtn.disabled = disable;
+                scheduleToggle.disabled = disable;
+            }
+        });
+    </script>
+</body>
+</html> 

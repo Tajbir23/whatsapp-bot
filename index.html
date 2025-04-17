@@ -1,0 +1,1715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Bulk Messenger</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f2f5;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #128C7E;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        h2 {
+            color: #075E54;
+            margin-top: 30px;
+            font-size: 1.3rem;
+            font-weight: 500;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        #qr-container {
+            text-align: center;
+            display: none;
+            margin: 20px 0;
+        }
+        #qr-code {
+            width: 256px;
+            height: 256px;
+            margin: 0 auto;
+            display: block;
+        }
+        .status {
+            background-color: #f8f9fa;
+            border-left: 4px solid #ffc107;
+            padding: 10px 15px;
+            margin: 15px 0;
+            border-radius: 0 4px 4px 0;
+        }
+        .status.success {
+            border-left-color: #28a745;
+        }
+        .status.error {
+            border-left-color: #dc3545;
+        }
+        button {
+            background-color: #128C7E;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 15px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #075E54;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #logout-btn {
+            background-color: #e74c3c;
+            margin-left: 10px;
+            display: none;
+        }
+        #logout-btn:hover {
+            background-color: #c0392b;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        input[type="file"], textarea {
+            width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 8px;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        #message-form {
+            display: none;
+        }
+        #results {
+            display: none;
+            margin-top: 20px;
+        }
+        .results-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .status-item {
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        .success-item {
+            color: #28a745;
+            border-left: 3px solid #28a745;
+            padding-left: 5px;
+        }
+        .failed-item {
+            color: #dc3545;
+            border-left: 3px solid #dc3545;
+            padding-left: 5px;
+        }
+        .scheduled-item {
+            color: #6c757d;
+            border-left: 3px solid #6c757d;
+            padding-left: 5px;
+        }
+        .pending-item {
+            color: #ffc107;
+            border-left: 3px solid #ffc107;
+            padding-left: 5px;
+        }
+        /* Progress bar */
+        #progress-container {
+            display: none;
+            margin-top: 20px;
+        }
+        .progress-bar-container {
+            width: 100%;
+            height: 20px;
+            background-color: #f1f1f1;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: #4CAF50;
+            text-align: center;
+            color: white;
+            line-height: 20px;
+            transition: width 0.5s;
+        }
+        .summary {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .summary-item {
+            text-align: center;
+            flex: 1;
+            min-width: 100px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            margin: 0 5px 10px 5px;
+        }
+        .summary-item h3 {
+            margin: 0;
+            font-size: 14px;
+            color: #6c757d;
+        }
+        .summary-item p {
+            margin: 5px 0 0 0;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .status-lists {
+            display: flex;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        .status-column {
+            flex: 1;
+            min-width: 300px;
+            margin: 0 5px 10px 5px;
+        }
+        .status-column h3 {
+            color: #6c757d;
+            font-size: 16px;
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        .scheduled-column {
+            flex: 1;
+            min-width: 300px;
+            margin: 0 5px 10px 5px;
+            display: none;
+        }
+        /* Toggle Switch */
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .toggle-label {
+            margin-left: 10px;
+            font-weight: normal;
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            border-radius: 24px;
+            transition: .4s;
+        }
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            border-radius: 50%;
+            transition: .4s;
+        }
+        input:checked + .toggle-slider {
+            background-color: #128C7E;
+        }
+        input:checked + .toggle-slider:before {
+            transform: translateX(26px);
+        }
+        /* Schedule display */
+        .schedule-container {
+            display: none;
+            margin-top: 20px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+        }
+        .schedule-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .schedule-header h3 {
+            margin: 0;
+            color: #075E54;
+        }
+        .schedule-next {
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        .time-progress-container {
+            height: 6px;
+            background-color: #e9ecef;
+            border-radius: 3px;
+            margin-bottom: 5px;
+            overflow: hidden;
+        }
+        .time-progress {
+            height: 100%;
+            background-color: #17a2b8;
+            transition: width 1s;
+        }
+        .time-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #6c757d;
+        }
+        /* Message input area */
+        .message-input-area {
+            margin-top: 10px;
+            margin-bottom: 20px;
+        }
+        /* Scheduled Messages section */
+        .card {
+            margin-top: 20px;
+        }
+        .card-header {
+            background-color: #f8f9fa;
+            border-bottom: none;
+        }
+        .card-body {
+            padding: 20px;
+        }
+        .scheduled-messages-list {
+            margin-bottom: 20px;
+        }
+        .schedule-visualization {
+            margin-top: 15px;
+            margin-bottom: 15px;
+            position: relative;
+        }
+        #scheduleTimeline {
+            height: 70px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+            background-color: #fcfcfc;
+        }
+        #messagePoints {
+            position: absolute;
+            top: 21px;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 2;
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        .message-dot {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background-color: #007bff;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 5;
+            box-shadow: 0 0 3px rgba(0,0,0,0.5);
+            transition: transform 0.2s ease-in-out;
+        }
+        .message-dot:hover {
+            transform: translate(-50%, -50%) scale(1.5);
+            background-color: #0056b3;
+            z-index: 10;
+            cursor: pointer;
+        }
+        .schedule-stats {
+            margin-top: 10px;
+        }
+        .next-message {
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #e9f7fb;
+            border-left: 4px solid #17a2b8;
+            border-radius: 4px;
+        }
+        
+        .next-message-container {
+            margin-bottom: 20px;
+        }
+        
+        .next-message-title {
+            font-size: 15px;
+            color: #555;
+            margin-bottom: 8px;
+        }
+        /* CSS styles for upcoming messages */
+        .upcoming-messages-container {
+            margin-top: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            background-color: #ffffff;
+            display: block !important;
+            width: 100%;
+        }
+        .upcoming-messages-title {
+            font-size: 15px;
+            color: #555;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+        }
+        .upcoming-messages-list {
+            max-height: 200px;
+            overflow-y: auto;
+            padding-right: 5px;
+            border: 1px solid #eee;
+            background-color: #fafafa;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 10px;
+        }
+        .upcoming-message-item {
+            padding: 8px 10px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+        }
+        .upcoming-message-item:last-child {
+            border-bottom: none;
+        }
+        .upcoming-message-item .time {
+            font-weight: 500;
+            color: #17a2b8;
+        }
+        .upcoming-message-item .relative-time {
+            color: #6c757d;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+        .upcoming-message-item .number {
+            color: #343a40;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>WhatsApp Bulk Messenger</h1>
+        
+        <div class="instruction">
+            <p><strong>Instructions:</strong></p>
+            <ol>
+                <li>Click "Connect WhatsApp" and scan the QR code with your WhatsApp mobile app</li>
+                <li>Upload a text file with one phone number per line (with country code, e.g., 12345678901)</li>
+                <li>Enter the message you want to send to all numbers</li>
+                <li>Click "Send Messages" to start sending</li>
+            </ol>
+        </div>
+
+        <div id="connection-section">
+            <button id="connect-btn">Connect WhatsApp</button>
+            <button id="logout-btn" style="display: none; background-color: #e74c3c;">Logout</button>
+            <div class="status" id="status-message">Not connected</div>
+            <div class="qr-container" id="qr-container">
+                <p>Scan this QR code with your WhatsApp:</p>
+                <img id="qr-code" class="qr-code" src="" alt="QR Code">
+            </div>
+        </div>
+
+        <form id="message-form" style="display: none;" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="numbersFile">Upload file with phone numbers (one per line):</label>
+                <input type="file" id="numbersFile" name="numbersFile" accept=".txt" required>
+            </div>
+            <div class="form-group">
+                <label for="message">Message to send:</label>
+                <textarea id="message" name="message" placeholder="Enter your message here..." required></textarea>
+            </div>
+            <div class="toggle-container">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="schedule-toggle" name="useSchedule" value="true">
+                    <span class="toggle-slider"></span>
+                </label>
+                <span class="toggle-label">Spread messages over time to avoid spam detection</span>
+            </div>
+            
+            <!-- Simplified Schedule Options -->
+            <div id="custom-schedule-options" style="display: none; margin-top: 15px; padding: 15px; background-color: #f8f9fa; border-radius: 4px; border: 1px solid #dee2e6;">
+                <h4 style="margin-top: 0; color: #075E54; font-size: 16px;">Schedule Duration</h4>
+                
+                <div class="form-group">
+                    <label for="schedule-duration">Duration (hours):</label>
+                    <input type="number" id="schedule-duration" name="scheduleDuration" min="1" max="168" value="24" class="form-control" title="Messages will be randomly distributed within this time period">
+                    <small class="form-text text-muted">If you enter 1 hour, messages will be sent at random times within that 1-hour period (max 300 messages)</small>
+                </div>
+                
+                <div class="alert alert-info" style="font-size: 14px; margin-top: 10px;">
+                    <strong>Tips to avoid spam detection:</strong>
+                    <ul style="margin-top: 5px; padding-left: 20px;">
+                        <li>Spreading messages over 24 hours is recommended</li>
+                        <li>Keep your message volume reasonable (under 100/day)</li>
+                        <li>Use a well-established WhatsApp number</li>
+                        <li>Avoid repetitive or promotional language</li>
+                    </ul>
+                </div>
+            </div>
+            <!-- End of Simplified Schedule Options -->
+            
+            <button type="submit" id="send-btn">Send Messages</button>
+        </form>
+
+        <div class="progress-container" id="progress-container" style="display: none;">
+            <div class="current-number" id="current-number">Processing: None</div>
+            
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progress-bar">0%</div>
+            </div>
+            
+            <div class="status-header">
+                <span id="progress-text">0/0 (0%)</span>
+            </div>
+            
+            <div class="summary">
+                <div class="summary-item">
+                    <div class="summary-number total" id="total-count">0</div>
+                    <div class="summary-label">Total</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-number success" id="success-count">0</div>
+                    <div class="summary-label">Success</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-number error" id="failed-count">0</div>
+                    <div class="summary-label">Failed</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-number scheduled" id="scheduled-count">0</div>
+                    <div class="summary-label">Scheduled</div>
+                </div>
+            </div>
+            
+            <div id="schedule-container" class="schedule-container" style="display: none;">
+                <h3 id="schedule-title">Schedule</h3>
+                
+                <!-- Immediate next message display -->
+                <div class="next-message-container">
+                    <h4 class="next-message-title">Next Scheduled Message</h4>
+                    <div class="next-message" id="next-message">Next message in: --:--:--</div>
+                </div>
+                
+                <!-- Progress tracking -->
+                <div class="time-indicator">
+                    <div class="time-label" id="start-time">Start</div>
+                    <div class="time-bar">
+                        <div class="time-progress" id="time-progress"></div>
+                    </div>
+                    <div class="time-label" id="end-time">End</div>
+                </div>
+                
+                <!-- All upcoming messages -->
+                <div class="upcoming-messages-container">
+                    <h4 class="upcoming-messages-title">All Upcoming Messages</h4>
+                    <div class="upcoming-messages-list" id="upcoming-messages-list">
+                        <div class="text-muted">Loading scheduled messages...</div>
+                    </div>
+                </div>
+                
+                <button id="stop-schedule-btn">Stop Schedule</button>
+            </div>
+            
+            <div class="status-lists">
+                <div class="status-column">
+                    <div class="list-title success">Success</div>
+                    <div class="status-list" id="success-list"></div>
+                </div>
+                <div class="status-column">
+                    <div class="list-title error">Failed</div>
+                    <div class="status-list" id="failed-list"></div>
+                </div>
+                <div class="status-column" id="scheduled-column" style="display: none;">
+                    <div class="list-title scheduled">Scheduled</div>
+                    <div class="status-list" id="scheduled-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="results" id="results">
+            <h3>Results:</h3>
+            <div id="results-content"></div>
+        </div>
+
+        <!-- Scheduled Messages section -->
+        <div class="card mt-3" id="scheduledMessagesCard" style="display: none;">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Scheduled Messages</h5>
+            </div>
+            <div class="card-body">
+                <div class="scheduled-controls mb-3">
+                    <button id="refreshScheduleBtn" class="btn btn-sm btn-outline-primary">Refresh List</button>
+                    <span id="scheduledMessagesCount" class="badge bg-primary ml-2">0</span> messages scheduled
+                </div>
+                
+                <div id="scheduledMessagesList" class="scheduled-messages-list">
+                    <!-- Messages will be added here dynamically -->
+                    <div class="text-center text-muted">No scheduled messages</div>
+                </div>
+                
+                <!-- Timeline visualization for scheduled messages -->
+                <div class="mt-4">
+                    <h6>Sending Schedule Timeline</h6>
+                    <div class="schedule-visualization mb-3">
+                        <div id="scheduleTimeline" class="position-relative" style="height: 70px; border: 1px solid #ddd; border-radius: 4px; overflow: hidden;">
+                            <!-- Time markers -->
+                            <div class="d-flex justify-content-between" style="position: absolute; top: 0; left: 0; right: 0; height: 20px; background-color: #f8f9fa; border-bottom: 1px solid #ddd;">
+                                <span class="px-1">00:00</span>
+                                <span class="px-1">06:00</span>
+                                <span class="px-1">12:00</span>
+                                <span class="px-1">18:00</span>
+                                <span class="px-1">24:00</span>
+                            </div>
+                            <!-- Message dots will be added here by JavaScript -->
+                            <div id="messagePoints" class="position-absolute" style="top: 21px; bottom: 0; left: 0; right: 0;"></div>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between schedule-stats mt-2">
+                        <div><small>Morning: <span id="morningCount">0</span> messages</small></div>
+                        <div><small>Afternoon: <span id="afternoonCount">0</span> messages</small></div>
+                        <div><small>Evening: <span id="eveningCount">0</span> messages</small></div>
+                        <div><small>Night: <span id="nightCount">0</span> messages</small></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const connectBtn = document.getElementById('connect-btn');
+            const logoutBtn = document.getElementById('logout-btn');
+            const qrContainer = document.getElementById('qr-container');
+            const qrCode = document.getElementById('qr-code');
+            const statusMessage = document.getElementById('status-message');
+            const messageForm = document.getElementById('message-form');
+            const resultsDiv = document.getElementById('results');
+            const resultsContent = document.getElementById('results-content');
+            
+            // Progress elements
+            const progressContainer = document.getElementById('progress-container');
+            const progressBar = document.getElementById('progress-bar');
+            const progressText = document.getElementById('progress-text');
+            const currentNumber = document.getElementById('current-number');
+            const totalCount = document.getElementById('total-count');
+            const successCount = document.getElementById('success-count');
+            const failedCount = document.getElementById('failed-count');
+            const scheduledCount = document.getElementById('scheduled-count');
+            const successList = document.getElementById('success-list');
+            const failedList = document.getElementById('failed-list');
+            const scheduledList = document.getElementById('scheduled-list');
+            
+            // Schedule elements
+            const scheduleToggle = document.getElementById('schedule-toggle');
+            const scheduleContainer = document.getElementById('schedule-container');
+            const scheduledColumn = document.getElementById('scheduled-column');
+            const nextMessage = document.getElementById('next-message');
+            const timeProgress = document.getElementById('time-progress');
+            const startTime = document.getElementById('start-time');
+            const endTime = document.getElementById('end-time');
+            const stopScheduleBtn = document.getElementById('stop-schedule-btn');
+            
+            // Scheduled messages management elements
+            const scheduledMessagesCard = document.getElementById('scheduledMessagesCard');
+            const scheduledMessagesList = document.getElementById('scheduledMessagesList');
+            const scheduledMessagesCount = document.getElementById('scheduledMessagesCount');
+            const refreshScheduleBtn = document.getElementById('refreshScheduleBtn');
+            const messagePoints = document.getElementById('messagePoints');
+            const morningCount = document.getElementById('morningCount');
+            const afternoonCount = document.getElementById('afternoonCount');
+            const eveningCount = document.getElementById('eveningCount');
+            const nightCount = document.getElementById('nightCount');
+            
+            // Flag to control message sending
+            let isAborted = false;
+            let isScheduleMode = false;
+            let statusUpdateInterval = null;
+            let scheduleChecked = false; // Flag to track if we've checked for scheduled messages
+
+            // Check session status on page load
+            console.log('Checking session status on page load...');
+            checkSession().then(status => {
+                console.log('Initial session status:', status);
+                
+                // Only fetch scheduled messages if connected
+                if (status === 'connected') {
+                    console.log('Connected, checking for scheduled messages...');
+                    fetchScheduledMessages().catch(err => {
+                        console.error('Error fetching scheduled messages on load:', err);
+                        // Don't break the app if this fails
+                    });
+                }
+            }).catch(err => {
+                console.error('Error during initial session check:', err);
+            });
+            
+            // Fetch and display scheduled messages
+            async function fetchScheduledMessages() {
+                try {
+                    console.log('Fetching scheduled messages...');
+                    const response = await fetch('/scheduled-messages');
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        console.error('Server error fetching scheduled messages:', errorData);
+                        throw new Error(errorData.error || 'Failed to fetch scheduled messages');
+                    }
+                    
+                    const data = await response.json();
+                    console.log('Scheduled messages API response:', data);
+                    
+                    if (!data.messages || !Array.isArray(data.messages)) {
+                        console.warn('Invalid data format for scheduled messages:', data);
+                        return { total: 0, messages: [] };
+                    }
+                    
+                    // Ensure the timeline is properly populated
+                    if (data.messages.length > 0) {
+                        const scheduleTimeline = document.getElementById('scheduleTimeline');
+                        const messagePoints = document.getElementById('messagePoints');
+                        
+                        if (scheduleTimeline && messagePoints) {
+                            scheduleTimeline.style.display = 'block';
+                            console.log(`Timeline container dimensions: ${scheduleTimeline.offsetWidth}x${scheduleTimeline.offsetHeight}`);
+                        }
+                    }
+                    
+                    // Display the scheduled messages
+                    displayScheduledMessages(data);
+                    
+                    // Make the scheduled messages card visible if we have messages
+                    if (data.total > 0) {
+                        const scheduledMessagesCard = document.getElementById('scheduledMessagesCard');
+                        if (scheduledMessagesCard) {
+                            scheduledMessagesCard.style.display = 'block';
+                        }
+                    }
+                    
+                    return data;
+                } catch (error) {
+                    console.error('Error fetching scheduled messages:', error);
+                    return { total: 0, messages: [] };
+                }
+            }
+
+            // Connect WhatsApp button click
+            connectBtn.addEventListener('click', async function() {
+                // Disable button to prevent multiple clicks
+                connectBtn.disabled = true;
+                
+                try {
+                    statusMessage.textContent = 'Initializing WhatsApp...';
+                    statusMessage.className = 'status';
+                    
+                    console.log('Sending request to initialize WhatsApp...');
+                    
+                    // Initialize WhatsApp
+                    const response = await fetch('/init-whatsapp');
+                    console.log('Received response from server', response.status);
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Failed to initialize WhatsApp');
+                    }
+                    
+                    const data = await response.json();
+                    console.log('Parsed data:', data);
+                    
+                    if (data.qrCode) {
+                        console.log('QR code received, showing for scanning');
+                        qrCode.src = data.qrCode;
+                        qrContainer.style.display = 'block';
+                        statusMessage.textContent = 'Scan this QR code with WhatsApp on your phone';
+                        
+                        // Start polling for session status and QR code
+                        pollForSession();
+                    } else if (data.message) {
+                        console.log('Message received:', data.message);
+                        statusMessage.textContent = data.message;
+                        await checkSession();
+                    }
+                } catch (error) {
+                    console.error('Error in WhatsApp initialization:', error);
+                    statusMessage.textContent = error.message || 'Error initializing WhatsApp. Please try again.';
+                    statusMessage.className = 'status error';
+                } finally {
+                    // Re-enable button after all operations
+                    setTimeout(() => {
+                        connectBtn.disabled = false;
+                    }, 2000); // 2-second delay to prevent spam clicks
+                }
+            });
+
+            // Schedule toggle change event
+            scheduleToggle.addEventListener('change', function() {
+                isScheduleMode = this.checked;
+                const customScheduleOptions = document.getElementById('custom-schedule-options');
+                
+                if (isScheduleMode) {
+                    scheduledColumn.style.display = 'block';
+                    customScheduleOptions.style.display = 'block';
+                } else {
+                    scheduledColumn.style.display = 'none';
+                    customScheduleOptions.style.display = 'none';
+                }
+            });
+            
+            // Stop schedule button click
+            stopScheduleBtn.addEventListener('click', function() {
+                if (confirm('Are you sure you want to stop all scheduled messages?')) {
+                    fetch('/stop-schedule')
+                        .then(response => response.json())
+                        .then(data => {
+                            nextMessage.textContent = 'Schedule stopped. ' + data.remainingScheduled + ' messages canceled.';
+                            this.disabled = true;
+                            this.textContent = 'Schedule Stopped';
+                        })
+                        .catch(error => {
+                            console.error('Error stopping schedule:', error);
+                            alert('Failed to stop schedule. Please try again.');
+                        });
+                }
+            });
+
+            // Poll for session and update QR code if needed
+            function pollForSession() {
+                const sessionInterval = setInterval(async function() {
+                    const status = await checkSession();
+                    
+                    if (status === 'connected') {
+                        clearInterval(sessionInterval);
+                        qrContainer.style.display = 'none';
+                    } else {
+                        // Try to get new QR code if not connected
+                        try {
+                            const response = await fetch('/get-qrcode');
+                            if (response.ok) {
+                                const data = await response.json();
+                                if (data.qrCode && data.qrCode !== qrCode.src) {
+                                    qrCode.src = data.qrCode;
+                                }
+                            }
+                        } catch (error) {
+                            console.error('Error fetching QR code:', error);
+                        }
+                    }
+                }, 3000);
+                
+                // Stop polling after 2 minutes
+                setTimeout(() => {
+                    clearInterval(sessionInterval);
+                }, 120000);
+            }
+
+            // Logout button click
+            logoutBtn.addEventListener('click', async function() {
+                try {
+                    const response = await fetch('/logout');
+                    const data = await response.json();
+                    
+                    statusMessage.textContent = data.message;
+                    checkSession();
+                    
+                    // Hide results
+                    resultsDiv.style.display = 'none';
+                    progressContainer.style.display = 'none';
+                    
+                    // Stop status polling
+                    if (statusUpdateInterval) {
+                        clearInterval(statusUpdateInterval);
+                        statusUpdateInterval = null;
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    statusMessage.textContent = 'Error logging out. Please try again.';
+                    statusMessage.className = 'status error';
+                }
+            });
+
+            // Form submission for sending messages
+            messageForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                // Reset flag
+                isAborted = false;
+                
+                // Get form data
+                const formData = new FormData(this);
+                
+                // Check if file and message are provided
+                const fileInput = document.getElementById('numbersFile');
+                const messageInput = document.getElementById('message');
+                const durationInput = document.getElementById('schedule-duration');
+                
+                if (!fileInput.files.length) {
+                    alert('Please select a file with phone numbers');
+                    return;
+                }
+                
+                if (!messageInput.value.trim()) {
+                    alert('Please enter a message to send');
+                    return;
+                }
+                
+                try {
+                    // Show progress container and hide other elements
+                    statusMessage.style.display = 'none';
+                    messageForm.style.display = 'none';
+                    progressContainer.style.display = 'block';
+                    resultsDiv.style.display = 'none';
+                    
+                    // Initialize progress display
+                    resetProgressDisplay();
+                    
+                    // Check if we're in schedule mode
+                    isScheduleMode = scheduleToggle.checked;
+                    
+                    // Ensure duration is set (default 24 hours if not specified)
+                    if (isScheduleMode) {
+                        // Set duration to input value or default to 24
+                        const duration = durationInput.value ? parseInt(durationInput.value) : 24;
+                        
+                        // Validate the duration is between 1 and 168 hours
+                        const validDuration = Math.min(Math.max(duration, 1), 168);
+                        
+                        // Update the form data with validated duration
+                        formData.set('scheduleDuration', validDuration.toString());
+                        
+                        scheduleContainer.style.display = 'block';
+                        scheduledColumn.style.display = 'block';
+                        stopScheduleBtn.disabled = false;
+                        stopScheduleBtn.textContent = 'Stop Schedule';
+                    } else {
+                        scheduleContainer.style.display = 'none';
+                        scheduledColumn.style.display = 'none';
+                    }
+                    
+                    // Send the messages
+                    const response = await fetch('/send-messages', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Failed to send messages');
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // Set the initial total count
+                    totalCount.textContent = data.totalNumbers;
+                    scheduledCount.textContent = data.totalNumbers;
+                    
+                    // Start polling for status updates
+                    startStatusPolling();
+                    
+                } catch (error) {
+                    console.error('Error:', error);
+                    currentNumber.textContent = 'Process failed';
+                    statusMessage.style.display = 'block';
+                    statusMessage.textContent = error.message || 'Error sending messages. Please try again.';
+                    statusMessage.className = 'status error';
+                    messageForm.style.display = 'block';
+                }
+            });
+
+            // Start polling for status
+            function startStatusPolling() {
+                // Clear any existing interval
+                if (statusUpdateInterval) {
+                    clearInterval(statusUpdateInterval);
+                }
+                
+                // Set up new polling interval
+                statusUpdateInterval = setInterval(pollMessageStatus, 1000);
+                
+                // Set a maximum polling time (1 day)
+                setTimeout(() => {
+                    if (statusUpdateInterval) {
+                        clearInterval(statusUpdateInterval);
+                        statusUpdateInterval = null;
+                    }
+                }, 24 * 60 * 60 * 1000);
+            }
+
+            // Poll for message status updates
+            async function pollMessageStatus() {
+                try {
+                    const response = await fetch('/message-status');
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch status');
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // Update current number
+                    if (data.current) {
+                        currentNumber.textContent = `Processing: ${data.current}`;
+                    }
+                    
+                    // Update counts
+                    successCount.textContent = data.success.length;
+                    failedCount.textContent = data.failed.length;
+                    
+                    // If we have scheduling info, update the UI accordingly
+                    if (data.scheduleInfo) {
+                        updateScheduleDisplay(data);
+                        
+                        // If scheduling is active, check for scheduled messages
+                        if (!isScheduleStopped && !scheduleChecked) {
+                            fetchScheduledMessages();
+                            scheduleChecked = true;
+                            
+                            // Start periodic refresh of scheduled messages
+                            setInterval(fetchScheduledMessages, 60000); // Refresh every minute
+                        }
+                    } else {
+                        // Standard mode - update scheduled count (which is pending)
+                        scheduledCount.textContent = data.total - data.processed;
+                        
+                        // Update progress bar
+                        const progress = Math.round((data.processed / data.total) * 100) || 0;
+                        progressBar.style.width = `${progress}%`;
+                        progressBar.textContent = `${progress}%`;
+                        progressText.textContent = `${data.processed}/${data.total} (${progress}%)`;
+                    }
+                    
+                    // Update success and failed lists
+                    updateStatusLists(data);
+                    
+                    // Check if process is complete
+                    if (data.processed >= data.total) {
+                        clearInterval(statusUpdateInterval);
+                        statusUpdateInterval = null;
+                        finishSending('completed');
+                    }
+                } catch (error) {
+                    console.error('Error polling for status:', error);
+                }
+            }
+
+            // Update schedule display with current status
+            function updateScheduleDisplay(data) {
+                const scheduleInfo = data.scheduleInfo;
+                
+                // Update scheduled/pending count
+                const scheduledItems = data.scheduled.filter(item => item.status === 'scheduled');
+                scheduledCount.textContent = scheduledItems.length;
+                
+                // Update scheduled list if needed
+                updateScheduledList(data.scheduled);
+                
+                // Update upcoming messages list
+                updateUpcomingMessagesList(data.scheduled);
+                
+                // Update schedule title with actual duration
+                if (scheduleInfo.startTime && scheduleInfo.endTime) {
+                    const startDate = new Date(scheduleInfo.startTime);
+                    const endDate = new Date(scheduleInfo.endTime);
+                    const durationHours = Math.round((endDate - startDate) / (60 * 60 * 1000));
+                    const scheduleTitle = document.getElementById('schedule-title');
+                    scheduleTitle.textContent = `${durationHours}-Hour Schedule`;
+                }
+                
+                // Update next message info
+                if (scheduleInfo.nextMessage) {
+                    const timeUntil = scheduleInfo.nextMessage.timeUntil;
+                    const scheduledTime = new Date(scheduleInfo.nextMessage.scheduledTime);
+                    const exactTime = formatTime(scheduledTime);
+                    nextMessage.innerHTML = `Next message to ${scheduleInfo.nextMessage.number}<br>at <strong>${exactTime}</strong> (in ${formatDuration(timeUntil)})`;
+                } else {
+                    nextMessage.textContent = 'No more scheduled messages';
+                }
+                
+                // Update time progress bar
+                timeProgress.style.width = `${scheduleInfo.progress}%`;
+                
+                // Update time labels if not already set
+                if (startTime.textContent === 'Start' && scheduleInfo.startTime) {
+                    startTime.textContent = formatTime(new Date(scheduleInfo.startTime));
+                }
+                
+                if (endTime.textContent === 'End' && scheduleInfo.endTime) {
+                    endTime.textContent = formatTime(new Date(scheduleInfo.endTime));
+                }
+                
+                // Update progress bar for overall completion
+                const progress = Math.round((data.processed / data.total) * 100) || 0;
+                progressBar.style.width = `${progress}%`;
+                progressBar.textContent = `${progress}%`;
+                progressText.textContent = `${data.processed}/${data.total} (${progress}%)`;
+                
+                // Check if schedule was stopped
+                if (scheduleInfo.isScheduleStopped) {
+                    stopScheduleBtn.disabled = true;
+                    stopScheduleBtn.textContent = 'Schedule Stopped';
+                }
+            }
+
+            // Update scheduled list display
+            function updateScheduledList(scheduledItems) {
+                if (!scheduledItems || scheduledItems.length === 0) return;
+                
+                // Get current items
+                const currentItems = scheduledList.querySelectorAll('.scheduled-item, .success-item, .failed-item');
+                const currentCount = currentItems.length;
+                
+                // If we have fewer items, we need to add them
+                if (currentCount < scheduledItems.length) {
+                    for (let i = currentCount; i < scheduledItems.length; i++) {
+                        const item = scheduledItems[i];
+                        addItemToScheduledList(item);
+                    }
+                }
+            }
+            
+            // Format duration in a human-readable way
+            function formatDuration(ms) {
+                const seconds = Math.floor(ms / 1000);
+                const minutes = Math.floor(seconds / 60);
+                const hours = Math.floor(minutes / 60);
+                
+                if (hours > 0) {
+                    return `${hours}h ${minutes % 60}m`;
+                } else if (minutes > 0) {
+                    return `${minutes}m ${seconds % 60}s`;
+                } else {
+                    return `${seconds}s`;
+                }
+            }
+
+            // Update success and failure lists
+            function updateStatusLists(status) {
+                // Update success list
+                if (status.success.length > successList.children.length) {
+                    // Add new items
+                    for (let i = successList.children.length; i < status.success.length; i++) {
+                        const result = status.success[i];
+                        const successItem = document.createElement('div');
+                        successItem.className = 'status-item success-item';
+                        successItem.textContent = `${result.number}: Message sent successfully`;
+                        successList.appendChild(successItem);
+                    }
+                    successList.scrollTop = successList.scrollHeight;
+                }
+                
+                // Update failure list
+                if (status.failed.length > failedList.children.length) {
+                    // Add new items
+                    for (let i = failedList.children.length; i < status.failed.length; i++) {
+                        const result = status.failed[i];
+                        const failedItem = document.createElement('div');
+                        failedItem.className = 'status-item failed-item';
+                        failedItem.textContent = `${result.number}: ${result.error || 'Failed to send message'}`;
+                        failedList.appendChild(failedItem);
+                    }
+                    failedList.scrollTop = failedList.scrollHeight;
+                }
+            }
+
+            // Format time (HH:MM)
+            function formatTime(date) {
+                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+            
+            // Format relative time for better readability
+            function getRelativeTimeString(date) {
+                const now = new Date();
+                const diffMs = date - now;
+                
+                if (diffMs < 0) {
+                    return 'Passed';
+                }
+                
+                const diffSecs = Math.floor(diffMs / 1000);
+                const diffMins = Math.floor(diffSecs / 60);
+                const diffHours = Math.floor(diffMins / 60);
+                
+                if (diffHours > 0) {
+                    return `in ${diffHours}h ${diffMins % 60}m`;
+                } else if (diffMins > 0) {
+                    return `in ${diffMins}m`;
+                } else {
+                    return `in ${diffSecs}s`;
+                }
+            }
+            
+            // Format phone number for display
+            function formatPhoneNumber(number) {
+                // Basic formatting, can be adjusted based on your requirements
+                const cleaned = ('' + number).replace(/\D/g, '');
+                const match = cleaned.match(/^(\d{1,3})(\d{0,3})(\d{0,4})$/);
+                if (match) {
+                    return match[1] + (match[2] ? '-' + match[2] : '') + (match[3] ? '-' + match[3] : '');
+                }
+                return number;
+            }
+
+            // Reset progress display
+            function resetProgressDisplay() {
+                progressBar.style.width = '0%';
+                progressBar.textContent = '0%';
+                progressText.textContent = '0/0 (0%)';
+                currentNumber.textContent = 'Processing: Starting...';
+                totalCount.textContent = '0';
+                successCount.textContent = '0';
+                failedCount.textContent = '0';
+                scheduledCount.textContent = '0';
+                successList.innerHTML = '';
+                failedList.innerHTML = '';
+                scheduledList.innerHTML = '';
+                nextMessage.textContent = 'Next message in: --:--:--';
+                timeProgress.style.width = '0%';
+                startTime.textContent = 'Start';
+                endTime.textContent = 'End';
+                
+                // Reset schedule title
+                document.getElementById('schedule-title').textContent = 'Schedule';
+            }
+
+            // Finish sending process
+            function finishSending(reason) {
+                let statusText = '';
+                let statusClass = '';
+                
+                const totalSuccessCount = parseInt(successCount.textContent) || 0;
+                const totalFailedCount = parseInt(failedCount.textContent) || 0;
+                
+                switch (reason) {
+                    case 'completed':
+                        statusText = `Completed: ${totalSuccessCount} sent, ${totalFailedCount} failed`;
+                        statusClass = 'status success';
+                        currentNumber.textContent = 'Processing: Completed';
+                        
+                        // Delete all data after completion
+                        cleanupAfterCompletion();
+                        break;
+                        
+                    case 'aborted':
+                        statusText = 'Message sending was aborted';
+                        statusClass = 'status error';
+                        currentNumber.textContent = 'Process aborted';
+                        break;
+                        
+                    case 'timeout':
+                        statusText = 'Message sending timed out';
+                        statusClass = 'status error';
+                        currentNumber.textContent = 'Process timed out';
+                        break;
+                }
+                
+                // Update pending count to 0
+                scheduledCount.textContent = '0';
+                
+                // Show message form again
+                setTimeout(() => {
+                    messageForm.style.display = 'block';
+                    statusMessage.style.display = 'block';
+                    statusMessage.textContent = statusText;
+                    statusMessage.className = statusClass;
+                }, 2000);
+            }
+
+            // Comprehensive cleanup function
+            async function cleanupAfterCompletion() {
+                console.log('Performing complete data cleanup after sending');
+                
+                try {
+                    // 1. Delete the uploaded file
+                    await deleteUploadedFile();
+                    
+                    // 2. Clear any scheduled messages
+                    if (isScheduleMode) {
+                        await fetch('/stop-schedule')
+                            .then(response => response.json())
+                            .catch(error => {
+                                console.error('Error stopping schedule:', error);
+                            });
+                    }
+                    
+                    // 3. Clear all in-memory data
+                    sendingResults = {
+                        success: [],
+                        failed: [],
+                        scheduled: [],
+                        current: null,
+                        total: 0,
+                        processed: 0
+                    };
+                    
+                    // 4. Reset UI elements
+                    scheduledMessagesCard.style.display = 'none';
+                    scheduledMessagesList.innerHTML = '';
+                    scheduledMessagesCount.textContent = '0';
+                    
+                    // Reset upcoming messages
+                    const upcomingMessagesList = document.getElementById('upcoming-messages-list');
+                    if (upcomingMessagesList) {
+                        upcomingMessagesList.innerHTML = '<div class="text-muted">No scheduled messages</div>';
+                    }
+                    
+                    // Timeline reset
+                    const messagePoints = document.getElementById('messagePoints');
+                    if (messagePoints) {
+                        messagePoints.innerHTML = '';
+                    }
+                    
+                    // Reset statistics
+                    document.getElementById('morningCount').textContent = '0';
+                    document.getElementById('afternoonCount').textContent = '0';
+                    document.getElementById('eveningCount').textContent = '0';
+                    document.getElementById('nightCount').textContent = '0';
+                    
+                    // 5. Show confirmation to user
+                    const notification = document.createElement('div');
+                    notification.className = 'alert alert-success mt-2';
+                    notification.innerHTML = `<strong>All data cleared!</strong> Messages have been sent and all associated data has been deleted.`;
+                    notification.style.position = 'fixed';
+                    notification.style.top = '20px';
+                    notification.style.right = '20px';
+                    notification.style.zIndex = '9999';
+                    notification.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                    document.body.appendChild(notification);
+                    
+                    // Remove notification after a few seconds
+                    setTimeout(() => {
+                        notification.style.opacity = '0';
+                        notification.style.transition = 'opacity 0.5s';
+                        setTimeout(() => {
+                            document.body.removeChild(notification);
+                        }, 500);
+                    }, 5000);
+                    
+                    console.log('Data cleanup complete');
+                } catch (error) {
+                    console.error('Error during data cleanup:', error);
+                }
+            }
+
+            // Function to delete the uploaded file after sending completion
+            async function deleteUploadedFile() {
+                try {
+                    const response = await fetch('/delete-uploaded-file', {
+                        method: 'POST'
+                    });
+                    
+                    if (!response.ok) {
+                        console.error('Failed to delete uploaded file');
+                    } else {
+                        console.log('Uploaded file deleted successfully');
+                    }
+                } catch (error) {
+                    console.error('Error deleting uploaded file:', error);
+                }
+            }
+
+            // Function to check session status
+            async function checkSession() {
+                try {
+                    console.log('Checking WhatsApp session status...');
+                    const response = await fetch('/check-session');
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to check session status');
+                    }
+                    
+                    const data = await response.json();
+                    console.log('Session status:', data.status);
+                    
+                    if (data.status === 'connected') {
+                        statusMessage.textContent = 'Connected to WhatsApp';
+                        statusMessage.className = 'status success';
+                        connectBtn.style.display = 'none';
+                        logoutBtn.style.display = 'inline-block';
+                        messageForm.style.display = 'block';
+                        qrContainer.style.display = 'none';
+                    } else {
+                        statusMessage.textContent = 'Not connected to WhatsApp';
+                        statusMessage.className = 'status';
+                        connectBtn.style.display = 'inline-block';
+                        logoutBtn.style.display = 'none';
+                        messageForm.style.display = 'none';
+                    }
+                    
+                    return data.status;
+                } catch (error) {
+                    console.error('Error checking session:', error);
+                    statusMessage.textContent = 'Error checking connection status';
+                    statusMessage.className = 'status error';
+                    return 'error';
+                }
+            }
+
+            // Display scheduled messages in the UI
+            function displayScheduledMessages(data) {
+                console.log('displayScheduledMessages called with data:', data);
+                
+                // Check if any scheduled messages are returned
+                if (!data || !data.messages || data.messages.length === 0) {
+                    console.log('No scheduled messages to display');
+                    scheduledMessagesCard.style.display = 'none';
+                    scheduledMessagesList.innerHTML = '<div class="text-center text-muted">No scheduled messages</div>';
+                    
+                    // Clear timeline visualization
+                    const messagePoints = document.getElementById('messagePoints');
+                    if (messagePoints) messagePoints.innerHTML = '';
+                    
+                    // Reset counts
+                    document.getElementById('morningCount').textContent = '0';
+                    document.getElementById('afternoonCount').textContent = '0';
+                    document.getElementById('eveningCount').textContent = '0';
+                    document.getElementById('nightCount').textContent = '0';
+                    
+                    return;
+                }
+                
+                console.log(`Displaying ${data.messages.length} scheduled messages`);
+                
+                // Show the card
+                scheduledMessagesCard.style.display = 'block';
+                
+                // Update count
+                scheduledMessagesCount.textContent = data.total;
+                
+                // Clear existing list
+                scheduledMessagesList.innerHTML = '';
+                
+                // Also update the upcoming messages list
+                updateUpcomingMessagesList(data.messages);
+                
+                // Make sure we have start and end times for timeline
+                if (data.startTime && data.endTime) {
+                    console.log(`Schedule range: ${new Date(data.startTime).toLocaleString()} to ${new Date(data.endTime).toLocaleString()}`);
+                    // Update the timeline visualization
+                    updateScheduleTimeline(data.messages, data.startTime, data.endTime);
+                } else {
+                    console.warn('Missing start or end time for timeline visualization');
+                    // Try to calculate timerange from the scheduled messages
+                    if (data.messages.length > 0) {
+                        const times = data.messages.map(m => new Date(m.scheduledTime).getTime());
+                        const earliestTime = new Date(Math.min(...times));
+                        const latestTime = new Date(Math.max(...times));
+                        
+                        // Add some padding
+                        earliestTime.setHours(earliestTime.getHours() - 1);
+                        latestTime.setHours(latestTime.getHours() + 1);
+                        
+                        console.log(`Calculated time range: ${earliestTime.toLocaleString()} to ${latestTime.toLocaleString()}`);
+                        updateScheduleTimeline(data.messages, earliestTime.toISOString(), latestTime.toISOString());
+                    }
+                }
+                
+                // Add each message to the list
+                data.messages.forEach((item, index) => {
+                    const scheduledTime = new Date(item.scheduledTime);
+                    const listItem = document.createElement('div');
+                    listItem.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    listItem.innerHTML = `
+                        <div>
+                            <strong>${item.number}</strong>
+                            <br>
+                            <small class="text-muted">${formatTime(scheduledTime)} (${getRelativeTimeString(scheduledTime)})</small>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger cancel-btn" data-id="${item.id}">Cancel</button>
+                    `;
+                    
+                    // Add a max height for long lists
+                    if (index >= 10 && index === data.messages.length - 1) {
+                        scheduledMessagesList.style.maxHeight = '300px';
+                        scheduledMessagesList.style.overflowY = 'auto';
+                    }
+                    
+                    scheduledMessagesList.appendChild(listItem);
+                });
+                
+                // Add event listeners to cancel buttons
+                document.querySelectorAll('.cancel-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const messageId = this.getAttribute('data-id');
+                        cancelScheduledMessage(messageId);
+                    });
+                });
+            }
+            
+            // Cancel a scheduled message
+            async function cancelScheduledMessage(messageId) {
+                if (!confirm('Are you sure you want to cancel this scheduled message?')) {
+                    return;
+                }
+                
+                try {
+                    console.log('Cancelling scheduled message:', messageId);
+                    
+                    const response = await fetch(`/scheduled-message/${messageId}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Failed to cancel scheduled message');
+                    }
+                    
+                    const data = await response.json();
+                    console.log('Message cancelled:', data);
+                    
+                    // Refresh message list
+                    fetchScheduledMessages();
+                    
+                    // Show success notification
+                    const notification = document.createElement('div');
+                    notification.className = 'alert alert-success mt-2';
+                    notification.innerHTML = `Message to <strong>${data.cancelledMessage.number}</strong> has been cancelled`;
+                    notification.style.position = 'fixed';
+                    notification.style.top = '20px';
+                    notification.style.right = '20px';
+                    notification.style.zIndex = '9999';
+                    notification.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                    document.body.appendChild(notification);
+                    
+                    // Remove notification after a few seconds
+                    setTimeout(() => {
+                        notification.style.opacity = '0';
+                        notification.style.transition = 'opacity 0.5s';
+                        setTimeout(() => {
+                            document.body.removeChild(notification);
+                        }, 500);
+                    }, 3000);
+                    
+                } catch (error) {
+                    console.error('Error cancelling message:', error);
+                    alert('Failed to cancel message: ' + error.message);
+                }
+            }
+            
+            // Add event listener to the refresh button
+            refreshScheduleBtn.addEventListener('click', function() {
+                fetchScheduledMessages().then(data => {
+                    // Explicitly make sure timeline is visible
+                    if (data && data.messages && data.messages.length > 0) {
+                        const scheduleTimeline = document.getElementById('scheduleTimeline');
+                        if (scheduleTimeline) {
+                            scheduleTimeline.style.display = 'block';
+                            
+                            // Force a reflow to ensure the timeline is properly sized
+                            setTimeout(() => {
+                                // Re-render the timeline visualization after DOM has settled
+                                if (data.startTime && data.endTime) {
+                                    updateScheduleTimeline(data.messages, data.startTime, data.endTime);
+                                }
+                            }, 100);
+                        }
+                    }
+                });
+            });
+
+            // JavaScript function to update the upcoming messages list
+            function updateUpcomingMessagesList(scheduledItems) {
+                console.log('updateUpcomingMessagesList called with', scheduledItems?.length || 0, 'items');
+                
+                const upcomingMessagesList = document.getElementById('upcoming-messages-list');
+                if (!upcomingMessagesList) {
+                    console.error('Could not find upcoming-messages-list element');
+                    return;
+                }
+                
+                // Clear the list
+                upcomingMessagesList.innerHTML = '';
+                
+                // Filter only scheduled (not sent/failed) messages
+                const pendingMessages = scheduledItems.filter(item => item.status === 'scheduled');
+                console.log('Filtered to', pendingMessages.length, 'pending messages');
+                
+                if (pendingMessages.length === 0) {
+                    upcomingMessagesList.innerHTML = '<div class="text-muted">No scheduled messages</div>';
+                    return;
+                }
+                
+                // Sort by scheduled time
+                const sortedMessages = [...pendingMessages].sort((a, b) => {
+                    return new Date(a.scheduledTime) - new Date(b.scheduledTime);
+                });
+                
+                // Create a list item for each message (limit to first 20 for performance)
+                const displayMessages = sortedMessages.slice(0, 20);
+                const now = new Date();
+                
+                console.log('Displaying', displayMessages.length, 'messages in upcoming list');
+                
+                displayMessages.forEach(message => {
+                    const scheduledTime = new Date(message.scheduledTime);
+                    const timeUntil = scheduledTime - now;
+                    
+                    const messageItem = document.createElement('div');
+                    messageItem.className = 'upcoming-message-item';
+                    
+                    const timeElement = document.createElement('div');
+                    timeElement.innerHTML = `<span class="time">${formatTime(scheduledTime)}</span> <span class="relative-time">(in ${formatDuration(timeUntil)})</span>`;
+                    
+                    const numberElement = document.createElement('div');
+                    numberElement.className = 'number';
+                    numberElement.textContent = message.number;
+                    
+                    messageItem.appendChild(timeElement);
+                    messageItem.appendChild(numberElement);
+                    
+                    upcomingMessagesList.appendChild(messageItem);
+                });
+                
+                // Add a message if there are more not shown
+                if (sortedMessages.length > 20) {
+                    const moreMessages = document.createElement('div');
+                    moreMessages.className = 'text-center text-muted mt-2';
+                    moreMessages.textContent = `+ ${sortedMessages.length - 20} more messages`;
+                    upcomingMessagesList.appendChild(moreMessages);
+                }
+            }
+
+            // Update the timeline visualization for scheduled messages
+            function updateScheduleTimeline(messages, startTimeStr, endTimeStr) {
+                console.log('Updating schedule timeline with', messages.length, 'messages');
+                
+                const messagePoints = document.getElementById('messagePoints');
+                const scheduleTimeline = document.getElementById('scheduleTimeline');
+                
+                if (!messagePoints || !scheduleTimeline) {
+                    console.error('Could not find messagePoints or scheduleTimeline element');
+                    return;
+                }
+                
+                // Clear existing points
+                messagePoints.innerHTML = '';
+                
+                // If no messages or no time range, exit
+                if (!messages || messages.length === 0 || !startTimeStr || !endTimeStr) {
+                    console.log('No data available for timeline');
+                    return;
+                }
+                
+                // Convert time strings to Date objects
+                const startTime = new Date(startTimeStr);
+                const endTime = new Date(endTimeStr);
+                
+                // Calculate total duration in milliseconds
+                const totalDuration = endTime - startTime;
+                if (totalDuration <= 0) {
+                    console.error('Invalid time range for timeline');
+                    return;
+                }
+                
+                // Count messages by time of day
+                let morningCount = 0;  // 6am - 12pm
+                let afternoonCount = 0; // 12pm - 6pm
+                let eveningCount = 0;   // 6pm - 12am
+                let nightCount = 0;     // 12am - 6am
+                
+                // Get timeline dimensions for proper positioning
+                const timelineWidth = scheduleTimeline.offsetWidth;
+                const timelineHeight = messagePoints.offsetHeight;
+                
+                console.log(`Timeline dimensions: ${timelineWidth}x${timelineHeight}`);
+                
+                // Add a point for each message
+                messages.forEach((message, index) => {
+                    // Skip if not scheduled
+                    if (message.status !== 'scheduled') return;
+                    
+                    const messageTime = new Date(message.scheduledTime);
+                    
+                    // Skip if outside our range
+                    if (messageTime < startTime || messageTime > endTime) return;
+                    
+                    // Calculate position as percentage of total duration
+                    const timeOffset = messageTime - startTime;
+                    const positionPercent = (timeOffset / totalDuration) * 100;
+                    
+                    console.log(`Message ${index}: position ${positionPercent.toFixed(2)}% (${timeOffset}ms / ${totalDuration}ms)`);
+                    
+                    // Create a point
+                    const point = document.createElement('div');
+                    point.className = 'message-dot';
+                    point.style.left = `${positionPercent}%`;
+                    
+                    // Vary vertical position for better visualization
+                    // Use a deterministic pattern based on the index to avoid overlaps
+                    const verticalPosition = 20 + ((index % 5) * 15);
+                    point.style.top = `${verticalPosition}%`;
+                    
+                    // Add tooltip with info
+                    point.title = `${message.number} at ${formatTime(messageTime)}`;
+                    
+                    messagePoints.appendChild(point);
+                    
+                    // Count by time of day
+                    const hours = messageTime.getHours();
+                    if (hours >= 6 && hours < 12) {
+                        morningCount++;
+                    } else if (hours >= 12 && hours < 18) {
+                        afternoonCount++;
+                    } else if (hours >= 18) {
+                        eveningCount++;
+                    } else {
+                        nightCount++;
+                    }
+                });
+                
+                console.log(`Added ${messagePoints.children.length} dots to timeline`);
+                console.log(`Message distribution: Morning: ${morningCount}, Afternoon: ${afternoonCount}, Evening: ${eveningCount}, Night: ${nightCount}`);
+                
+                // Update count displays
+                document.getElementById('morningCount').textContent = morningCount;
+                document.getElementById('afternoonCount').textContent = afternoonCount;
+                document.getElementById('eveningCount').textContent = eveningCount;
+                document.getElementById('nightCount').textContent = nightCount;
+            }
+        });
+    </script>
+</body>
+</html>
