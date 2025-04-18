@@ -758,7 +758,7 @@
                 </div>
             </div>
             
-            <div id="scheduled-info" style="display: none;">
+            <div id="scheduled-info" style="display: block;">
                 <h3>Scheduled Messages Status</h3>
                 <div class="next-message-info" id="next-message">Next message in: --:--:--</div>
                 
@@ -914,9 +914,9 @@
                 const lastUpdate = localStorage.getItem('lastStatusUpdate');
                 const now = new Date().getTime();
                 
-                // Check if we have recent stored data (within the last 2 minutes)
-                if (storedData && lastUpdate && (now - parseInt(lastUpdate) < 120000)) {
-                    console.log('Restoring state from localStorage');
+                // Check if we have stored data (valid for up to 24 hours)
+                if (storedData && lastUpdate && (now - parseInt(lastUpdate) < 24 * 60 * 60 * 1000)) {
+                    console.log('Restoring state from localStorage, last updated: ' + new Date(parseInt(lastUpdate)).toLocaleString());
                     
                     try {
                         // Parse the stored data
@@ -1186,6 +1186,9 @@
                             // Show scheduled messages even if they're not currently "active"
                             if (scheduledData.messages && scheduledData.messages.length > 0) {
                                 console.log('Found scheduled messages, displaying in real-time');
+                                
+                                // Initialize scheduled info section
+                                initializeScheduledInfoSection();
                                 
                                 // Show progress container
                                 progressContainer.style.display = 'block';
@@ -1537,6 +1540,23 @@
             // Logout button click
             logoutBtn.addEventListener('click', async function() {
                 try {
+                    // Save existing scheduled messages
+                    let existingScheduledData = { scheduled: [], scheduleInfo: null };
+                    try {
+                        const storedData = localStorage.getItem('sendingResults');
+                        if (storedData) {
+                            const parsedData = JSON.parse(storedData);
+                            if (parsedData.scheduled) {
+                                existingScheduledData.scheduled = parsedData.scheduled.filter(item => item.status === 'scheduled');
+                            }
+                            if (parsedData.scheduleInfo && parsedData.scheduleInfo.upcomingMessages) {
+                                existingScheduledData.scheduleInfo = parsedData.scheduleInfo;
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error parsing localStorage data during logout:', error);
+                    }
+                    
                     const response = await fetch('/logout');
                     const data = await response.json();
                     
@@ -1551,6 +1571,29 @@
                     if (statusUpdateInterval) {
                         clearInterval(statusUpdateInterval);
                         statusUpdateInterval = null;
+                    }
+                    
+                    // Restore scheduled message data to localStorage
+                    if (existingScheduledData.scheduled.length > 0 || 
+                        (existingScheduledData.scheduleInfo && existingScheduledData.scheduleInfo.upcomingMessages && 
+                         existingScheduledData.scheduleInfo.upcomingMessages.length > 0)) {
+                        
+                        // Create minimal data structure to preserve scheduled messages
+                        const preservedData = {
+                            success: [],
+                            failed: [],
+                            scheduled: existingScheduledData.scheduled,
+                            current: null,
+                            total: 0,
+                            processed: 0,
+                            scheduleInfo: existingScheduledData.scheduleInfo
+                        };
+                        
+                        // Save to localStorage
+                        localStorage.setItem('sendingResults', JSON.stringify(preservedData));
+                        localStorage.setItem('lastStatusUpdate', new Date().getTime());
+                        
+                        console.log('Preserved scheduled messages during logout:', existingScheduledData.scheduled.length);
                     }
                 } catch (error) {
                     console.error('Error:', error);
@@ -1649,15 +1692,19 @@
                 }
             });
 
-            // Start polling for status
+            // Start polling for status with adaptive polling intervals
             function startStatusPolling() {
                 // Clear any existing interval
                 if (statusUpdateInterval) {
                     clearInterval(statusUpdateInterval);
+                    statusUpdateInterval = null;
                 }
                 
-                // Poll more frequently for better real-time updates
-                statusUpdateInterval = setInterval(pollMessageStatus, 300); // Poll every 300ms for more responsive updates
+                // Set up visibility change detection
+                document.addEventListener('visibilitychange', handleVisibilityChange);
+                
+                // Start with the appropriate polling interval
+                setPollingInterval();
                 
                 // Run immediately on start
                 pollMessageStatus();
@@ -1667,16 +1714,35 @@
                     if (statusUpdateInterval) {
                         clearInterval(statusUpdateInterval);
                         statusUpdateInterval = null;
+                        document.removeEventListener('visibilitychange', handleVisibilityChange);
                     }
                 }, 24 * 60 * 60 * 1000); // 24 hours max
+            }
+
+            // Handle visibility changes to adjust polling frequency
+            function handleVisibilityChange() {
+                // Clear existing interval and set a new one with appropriate frequency
+                if (statusUpdateInterval) {
+                    clearInterval(statusUpdateInterval);
+                    statusUpdateInterval = null;
+                }
+                setPollingInterval();
+            }
+
+            // Set polling interval based on document visibility
+            function setPollingInterval() {
+                const pollingFrequency = document.hidden ? 10000 : 1000; // 10 seconds when hidden, 1 second when visible
+                console.log(`Setting polling interval to ${pollingFrequency}ms (document ${document.hidden ? 'hidden' : 'visible'})`);
+                statusUpdateInterval = setInterval(pollMessageStatus, pollingFrequency);
             }
 
             // Function to poll for message sending status
             async function pollMessageStatus() {
                 try {
+                    // Don't skip polling even when hidden, just reduce frequency
                     if (document.hidden) {
-                        console.log('Document is hidden, pausing status polling');
-                        return;
+                        console.log('Document is hidden, reducing polling frequency');
+                        // We'll still continue with the poll to keep data fresh
                     }
                     
                     console.log('Polling for message status...');
@@ -1690,18 +1756,18 @@
                     const data = await response.json();
                     console.log('Received message status data:', data);
                     
-                    // Check if we have upcoming messages
-                    if (data.scheduleInfo && data.scheduleInfo.upcomingMessages) {
-                        console.log(`Found ${data.scheduleInfo.upcomingMessages.length} upcoming messages in schedule info`);
-                    } else {
-                        console.log('No upcoming messages in schedule info');
-                    }
-                    
-                    // Store the entire sending results in localStorage for persistence
+                    // Always store the entire sending results in localStorage for persistence
+                    // regardless of whether the document is visible
                     localStorage.setItem('sendingResults', JSON.stringify(data));
                     localStorage.setItem('lastStatusUpdate', new Date().getTime());
                     
-                    // Always show progress container when we have any data
+                    // Skip UI updates if document is hidden to save resources
+                    if (document.hidden) {
+                        console.log('Document is hidden, skipping UI updates but data is saved to localStorage');
+                        return;
+                    }
+                    
+                    // Always show progress container when we have data
                     if (data.total > 0 || data.success?.length > 0 || data.failed?.length > 0 || 
                         (data.scheduleInfo && data.scheduleInfo.upcomingMessages?.length > 0)) {
                         progressContainer.style.display = 'block';
@@ -1740,7 +1806,7 @@
                             let remaining = parts[1].trim();
                             if (remaining.includes('(')) {
                                 displayNumber = remaining.substring(0, remaining.indexOf('(')).trim();
-                            } else {
+                    } else {
                                 displayNumber = remaining;
                             }
                         } else {
@@ -1783,14 +1849,29 @@
                         document.title = 'WhatsApp Bulk Messenger';
                     }
                     
-                    // Check for scheduling mode
+                    // Handle scheduled messages and upcoming display
                     if (data.scheduleInfo) {
-                        // Show scheduled info section
-                        document.getElementById('scheduled-info').style.display = 'block';
+                        // Ensure scheduled info section is visible
+                        const scheduledInfo = document.getElementById('scheduled-info');
+                        if (scheduledInfo) {
+                            scheduledInfo.style.display = 'block';
+                            
+                            // Make sure all-messages-status is visible
+                            const allMessagesStatus = scheduledInfo.querySelector('.all-messages-status');
+                            if (allMessagesStatus) {
+                                allMessagesStatus.style.display = 'block';
+                            }
+                        }
                         
                         // Make scheduled column visible
                         const scheduledColumn = document.getElementById('scheduled-column');
                         if (scheduledColumn) scheduledColumn.style.display = 'block';
+                        
+                        // Always update scheduled count
+                        if (data.scheduled) {
+                const scheduledItems = data.scheduled.filter(item => item.status === 'scheduled');
+                scheduledCount.textContent = scheduledItems.length;
+                        }
                         
                         // Create schedule display data from the response
                         const scheduleDisplayData = {
@@ -1803,18 +1884,19 @@
                         // Update the scheduled display
                         updateScheduleDisplay(scheduleDisplayData);
                         
-                        // Update the upcoming messages list
+                        // Force update of upcoming messages list with each poll
                         if (data.scheduleInfo.upcomingMessages && data.scheduleInfo.upcomingMessages.length > 0) {
+                            console.log('Updating upcoming messages list with data from server');
                             updateUpcomingMessagesList(data.scheduleInfo.upcomingMessages);
-                        }
-                        
-                        // Update scheduled count
-                        if (data.scheduled) {
-                            const scheduledItems = data.scheduled.filter(item => item.status === 'scheduled');
-                            scheduledCount.textContent = scheduledItems.length;
+                            
+                            // Ensure upcoming messages list is visible
+                            const upcomingMessagesList = document.getElementById('upcoming-messages-list');
+                            if (upcomingMessagesList) {
+                                upcomingMessagesList.style.display = 'block';
+                            }
                         }
                     } else {
-                        // Regular mode - update progress bar
+                        // Non-scheduled mode updates
                         if (data.total > 0) {
                             const progress = Math.round((data.processed / data.total) * 100) || 0;
                             progressBar.style.width = `${progress}%`;
@@ -1828,12 +1910,12 @@
                     
                     // Check if messages are still processing or all done
                     if (data.total === 0 || data.processed >= data.total) {
-                        // Processing complete
+                        // Processing complete for immediate messages
                         if (!data.scheduleInfo || (data.scheduleInfo && data.scheduleInfo.upcomingMessages.length === 0)) {
                             // No scheduled messages remaining, show the message form
                             messageForm.style.display = 'block';
                         }
-                    } else {
+                } else {
                         // Still processing, hide the message form
                         messageForm.style.display = 'none';
                     }
@@ -2140,13 +2222,13 @@
 
             // Comprehensive cleanup function
             async function cleanupAfterCompletion() {
-                console.log('Performing complete data cleanup after sending');
+                console.log('Performing selective data cleanup after sending');
                 
                 try {
                     // 1. Delete the uploaded file
                     await deleteUploadedFile();
                     
-                    // 2. Clear any scheduled messages
+                    // 2. Stop schedule if in schedule mode but preserve data
                     if (isScheduleMode) {
                         await fetch('/stop-schedule')
                             .then(response => response.json())
@@ -2155,22 +2237,41 @@
                             });
                     }
                     
-                    // 3. Clear all in-memory data
+                    // 3. Get existing data from localStorage to keep scheduled messages
+                    let existingData = {};
+                    try {
+                        const storedData = localStorage.getItem('sendingResults');
+                        if (storedData) {
+                            existingData = JSON.parse(storedData);
+                        }
+                    } catch (error) {
+                        console.error('Error parsing localStorage data:', error);
+                    }
+                    
+                    // 4. Update the in-memory sendingResults with completed data cleared
+                    // but preserve scheduled messages
                     sendingResults = {
                         success: [],
                         failed: [],
-                        scheduled: [],
+                        scheduled: existingData.scheduled || [],
                         current: null,
                         total: 0,
-                        processed: 0
+                        processed: 0,
+                        scheduleInfo: existingData.scheduleInfo
                     };
                     
-                    // 4. Reset UI elements
+                    // 5. Save updated data to localStorage
+                    localStorage.setItem('sendingResults', JSON.stringify(sendingResults));
+                    localStorage.setItem('lastStatusUpdate', new Date().getTime());
+                    
+                    // 6. Reset UI elements but preserve scheduled info
+                    // We won't hide the scheduled messages card if there are scheduled messages
+                    if (!sendingResults.scheduled || sendingResults.scheduled.length === 0) {
                     scheduledMessagesCard.style.display = 'none';
                     scheduledMessagesList.innerHTML = '';
                     scheduledMessagesCount.textContent = '0';
                     
-                    // Reset upcoming messages
+                        // Only reset upcoming messages if no scheduled messages remain
                     const upcomingMessagesList = document.getElementById('upcoming-messages-list');
                     if (upcomingMessagesList) {
                         upcomingMessagesList.innerHTML = '<div class="text-muted">No scheduled messages</div>';
@@ -2187,11 +2288,12 @@
                     document.getElementById('afternoonCount').textContent = '0';
                     document.getElementById('eveningCount').textContent = '0';
                     document.getElementById('nightCount').textContent = '0';
+                    }
                     
-                    // 5. Show confirmation to user
+                    // 7. Show confirmation to user
                     const notification = document.createElement('div');
                     notification.className = 'alert alert-success mt-2';
-                    notification.innerHTML = `<strong>All data cleared!</strong> Messages have been sent and all associated data has been deleted.`;
+                    notification.innerHTML = `<strong>Success!</strong> Messages have been sent and immediate data has been cleared.`;
                     notification.style.position = 'fixed';
                     notification.style.top = '20px';
                     notification.style.right = '20px';
@@ -2208,7 +2310,7 @@
                         }, 500);
                     }, 5000);
                     
-                    console.log('Data cleanup complete');
+                    console.log('Selective data cleanup complete, preserved scheduled messages');
                 } catch (error) {
                     console.error('Error during data cleanup:', error);
                 }
@@ -2434,11 +2536,9 @@
             function updateUpcomingMessagesList(scheduledItems) {
                 console.log('Updating upcoming messages list with', scheduledItems?.length || 0, 'items');
                 
-                // Force scheduled info to be visible regardless of previous settings
-                const scheduledInfo = document.getElementById('scheduled-info');
-                scheduledInfo.style.display = 'block';
+                // Force visibility of parent containers
+                document.getElementById('scheduled-info').style.display = 'block';
                 
-                // Force the all-messages-status section to be visible
                 const allMessagesStatus = document.querySelector('.all-messages-status');
                 if (allMessagesStatus) {
                     allMessagesStatus.style.display = 'block';
@@ -2450,38 +2550,41 @@
                     return;
                 }
                 
-                // Force container to be visible
+                // Force visibility and clear any inline styles that might be hiding it
                 upcomingMessagesList.style.display = 'block';
+                upcomingMessagesList.style.visibility = 'visible';
+                upcomingMessagesList.style.overflow = 'auto';
+                upcomingMessagesList.style.height = 'auto';
+                upcomingMessagesList.style.maxHeight = '300px';
                 
                 // Clear the list
                 upcomingMessagesList.innerHTML = '';
                 
-                // Debug
-                console.log('Upcoming messages container display style:', upcomingMessagesList.style.display);
-                console.log('Upcoming messages container visibility:', window.getComputedStyle(upcomingMessagesList).visibility);
-                console.log('Upcoming messages container dimensions:', upcomingMessagesList.offsetWidth, 'x', upcomingMessagesList.offsetHeight);
+                console.log('Containers visibility set to visible');
                 
-                // Normalize and filter scheduled items
-                const pendingMessages = [];
-                
-                if (Array.isArray(scheduledItems)) {
-                // Filter only scheduled (not sent/failed) messages
-                    scheduledItems.forEach(item => {
-                        if (!item.hasOwnProperty('status') || item.status === 'scheduled') {
-                            pendingMessages.push(item);
-                        }
-                    });
+                // If we don't have items or they're empty, show a message
+                if (!scheduledItems || !Array.isArray(scheduledItems) || scheduledItems.length === 0) {
+                    upcomingMessagesList.innerHTML = '<div class="text-muted p-3">No scheduled messages</div>';
+                    console.log('No scheduled items to display');
+                    return;
                 }
                 
+                console.log('Processing ' + scheduledItems.length + ' scheduled items');
+                
+                // Filter only scheduled (not sent/failed) messages
+                const pendingMessages = scheduledItems.filter(item => 
+                    !item.hasOwnProperty('status') || item.status === 'scheduled'
+                );
+                
                 if (pendingMessages.length === 0) {
-                    upcomingMessagesList.innerHTML = '<div class="text-muted">No scheduled messages</div>';
+                    upcomingMessagesList.innerHTML = '<div class="text-muted p-3">No pending scheduled messages</div>';
                     return;
                 }
                 
                 // Sort by scheduled time
-                const sortedMessages = [...pendingMessages].sort((a, b) => {
-                    return new Date(a.scheduledTime) - new Date(b.scheduledTime);
-                });
+                const sortedMessages = [...pendingMessages].sort((a, b) => 
+                    new Date(a.scheduledTime) - new Date(b.scheduledTime)
+                );
                 
                 // Create table for better formatting
                 const table = document.createElement('table');
@@ -2500,6 +2603,10 @@
                 upcomingMessagesList.appendChild(table);
                 
                 const tbody = document.getElementById('upcoming-messages-tbody');
+                if (!tbody) {
+                    console.error('Failed to create table body element');
+                    return;
+                }
                 
                 // Current time for accurate countdowns
                 const now = new Date();
@@ -2514,7 +2621,7 @@
                         ? '<span class="pulse">Sending now...</span>' 
                         : (message.formattedTimeUntil || formatDuration(timeUntil));
                     
-                    // Create row with data attributes for real-time updates
+                    // Create row
                     const row = document.createElement('tr');
                     row.id = `msg-row-${index}`;
                     row.className = 'upcoming-message-row';
@@ -2548,62 +2655,158 @@
                     tbody.appendChild(row);
                 });
                 
-                // Start or restart the countdown updater
+                console.log(`Created table with ${sortedMessages.length} messages`);
+                
+                // Start countdown updater to keep times current
                 startCountdownUpdater();
             }
 
             // Function to update countdowns in real-time without waiting for server updates
             function startCountdownUpdater() {
+                console.log('Starting countdown updater for real-time updates');
+                
                 // Clear any existing updater
                 if (window.countdownUpdater) {
                     clearInterval(window.countdownUpdater);
+                    console.log('Cleared existing countdown updater');
                 }
-                
-                console.log('Starting countdown updater...');
                 
                 // Create new updater that runs every second
                 window.countdownUpdater = setInterval(() => {
                     const tbody = document.getElementById('upcoming-messages-tbody');
                     if (!tbody) {
-                        console.log('No upcoming messages tbody found, stopping updater');
-                        return;
-                    }
-                    
+                        console.log('Countdown updater: tbody element not found');
+                    return;
+                }
+                
                     const rows = tbody.querySelectorAll('tr[data-scheduled-time]');
                     if (rows.length === 0) {
-                        console.log('No message rows found, stopping updater');
-                        return;
-                    }
-                    
-                    console.log(`Updating countdowns for ${rows.length} messages`);
-                    
+                        console.log('Countdown updater: no scheduled message rows found');
+                    return;
+                }
+                
+                    // Update each row's countdown in real-time
                     const now = new Date();
                     
-                    // Update each row's countdown in real-time
                     rows.forEach(row => {
-                        const scheduledTime = new Date(row.dataset.scheduledTime);
-                        const timeUntil = scheduledTime - now;
-                        const countdownCell = row.querySelector('.countdown-cell');
-                        if (!countdownCell) return;
+                        if (!row.dataset.scheduledTime) return;
                         
-                        // Update the countdown text
-                        if (timeUntil <= 0) {
-                            countdownCell.innerHTML = '<span class="pulse">Sending now...</span>';
-                            row.className = 'upcoming-message-row imminent';
-                        } else {
-                            countdownCell.textContent = formatDuration(timeUntil);
+                        try {
+                            const scheduledTime = new Date(row.dataset.scheduledTime);
+                            const timeUntil = scheduledTime - now;
+                            const countdownCell = row.querySelector('.countdown-cell');
                             
-                            // Update row styling based on time remaining
-                            row.className = 'upcoming-message-row';
-                            if (timeUntil <= 60000) { // Less than a minute
-                                row.classList.add('imminent');
-                            } else if (timeUntil <= 300000) { // Less than 5 minutes
-                                row.classList.add('very-soon');
+                            if (!countdownCell) return;
+                            
+                            // Update the countdown text
+                            if (timeUntil <= 0) {
+                                countdownCell.innerHTML = '<span class="pulse">Sending now...</span>';
+                                row.className = 'upcoming-message-row imminent';
+                            } else {
+                                countdownCell.textContent = formatDuration(timeUntil);
+                                
+                                // Update row styling based on time remaining
+                                row.className = 'upcoming-message-row';
+                                if (timeUntil <= 60000) { // Less than a minute
+                                    row.classList.add('imminent');
+                                } else if (timeUntil <= 300000) { // Less than 5 minutes
+                                    row.classList.add('very-soon');
+                                }
                             }
+                        } catch (error) {
+                            console.error('Error updating countdown for row:', error);
                         }
                     });
                 }, 1000); // Update every second
             }
+
+            // Function to ensure scheduled info section is properly initialized
+            function initializeScheduledInfoSection() {
+                console.log('Initializing scheduled info section');
+                
+                // Check localStorage first for any scheduled messages
+                const storedData = localStorage.getItem('sendingResults');
+                if (storedData) {
+                    try {
+                        const parsedData = JSON.parse(storedData);
+                        if (parsedData.scheduleInfo && parsedData.scheduleInfo.upcomingMessages && 
+                            parsedData.scheduleInfo.upcomingMessages.length > 0) {
+                            console.log(`Found ${parsedData.scheduleInfo.upcomingMessages.length} upcoming messages in localStorage`);
+                            
+                            // Make sure the scheduled info section is visible
+                            const scheduledInfo = document.getElementById('scheduled-info');
+                            if (scheduledInfo) {
+                                scheduledInfo.style.display = 'block';
+                                
+                                // Make sure the all-messages-status section is visible
+                                const allMessagesStatus = scheduledInfo.querySelector('.all-messages-status');
+                                if (allMessagesStatus) {
+                                    allMessagesStatus.style.display = 'block';
+                                }
+                                
+                                // Make sure the upcoming-messages-list is visible
+                                const upcomingMessagesList = document.getElementById('upcoming-messages-list');
+                                if (upcomingMessagesList) {
+                                    upcomingMessagesList.style.display = 'block';
+                                    upcomingMessagesList.style.visibility = 'visible';
+                                    upcomingMessagesList.style.height = 'auto';
+                                    upcomingMessagesList.style.maxHeight = '300px';
+                                }
+                                
+                                // Update the UI with the stored data
+                                updateUpcomingMessagesList(parsedData.scheduleInfo.upcomingMessages);
+                                
+                                // Update the schedule display if time info is available
+                                if (parsedData.scheduleInfo.startTime && parsedData.scheduleInfo.endTime) {
+                                    const scheduleDisplayData = {
+                                        active: true,
+                                        startTime: parsedData.scheduleInfo.startTime,
+                                        endTime: parsedData.scheduleInfo.endTime,
+                                        upcomingMessages: parsedData.scheduleInfo.upcomingMessages
+                                    };
+                                    updateScheduleDisplay(scheduleDisplayData);
+                                }
+                                
+                                // Start status polling to keep updates flowing
+                                if (!statusUpdateInterval) {
+                                    startStatusPolling();
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error parsing localStorage data:', error);
+                    }
+                }
+                
+                // Also make sure the containers are visible regardless
+                const scheduledInfo = document.getElementById('scheduled-info');
+                if (scheduledInfo) {
+                    scheduledInfo.style.display = 'block';
+                    
+                    const allMessagesStatus = scheduledInfo.querySelector('.all-messages-status');
+                    if (allMessagesStatus) {
+                        allMessagesStatus.style.display = 'block';
+                    }
+                    
+                    const upcomingMessagesList = document.getElementById('upcoming-messages-list');
+                    if (upcomingMessagesList) {
+                        upcomingMessagesList.style.display = 'block';
+                        upcomingMessagesList.style.visibility = 'visible';
+                        upcomingMessagesList.style.height = 'auto';
+                        
+                        // If list is empty, add a placeholder
+                        if (upcomingMessagesList.children.length === 0) {
+                            upcomingMessagesList.innerHTML = '<div class="text-muted p-3">Checking for scheduled messages...</div>';
+                        }
+                    }
+                }
+                
+                // Force a fetch of scheduled messages from the server
+                fetchScheduledMessages();
+            }
+
+            // Check if there are scheduled messages on page load
+            initializeScheduledInfoSection();
         });
     </script>
 </body>
