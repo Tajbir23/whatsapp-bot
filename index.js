@@ -704,9 +704,36 @@ function startScheduledSending(schedule, message, filePath) {
     console.log(`File exists at path: ${filePath}`);
   }
   
+  // Initialize with first scheduled message
+  if (schedule.length > 0) {
+    const firstMessage = schedule[0];
+    // Set the initial current number as "scheduled" to show what's coming up
+    sendingResults.current = `Scheduled: ${firstMessage.number} (next to send)`;
+    console.log(`Setting initial scheduled number: ${firstMessage.number}`);
+  }
+  
   // Schedule each message
   schedule.forEach((item, index) => {
     console.log(`Scheduling message to ${item.number} with delay ${item.delay}ms (${Math.round(item.delay/60000)} minutes)`);
+    
+    // Find the next message in the schedule (if any)
+    const nextIndex = index + 1;
+    const nextItem = nextIndex < schedule.length ? schedule[nextIndex] : null;
+    
+    // Set up a pre-processing timer to update the current number right before processing
+    // This ensures the number is shown as "Processing soon" right before it's processed
+    if (item.delay > 5000) { // If more than 5 seconds until processing
+      const preProcessingDelay = item.delay - 5000; // 5 seconds before actual processing
+      const preProcessingTimeout = setTimeout(() => {
+        if (!isScheduleStopped) {
+          sendingResults.current = `Processing soon: ${item.number}`;
+          console.log(`About to process: ${item.number}`);
+        }
+      }, preProcessingDelay);
+      
+      // Add to timeouts so it can be cleared if needed
+      scheduleTimeouts.push(preProcessingTimeout);
+    }
     
     const timeout = setTimeout(async () => {
       // If schedule was stopped, don't process
@@ -715,9 +742,9 @@ function startScheduledSending(schedule, message, filePath) {
         return;
       }
       
-      // Set the current number being processed in the sending results for real-time UI updates
-      // This ensures the UI shows which number is being processed
-      sendingResults.current = item.number;
+      // Set the current number being processed for real-time UI updates
+      sendingResults.current = `Processing: ${item.number}`;
+      console.log(`Now processing: ${item.number}`);
       
       try {
         // Debug check if file still exists
@@ -735,9 +762,6 @@ function startScheduledSending(schedule, message, filePath) {
         if (messageIndex !== -1) {
           // Update message status to processing
           sendingResults.scheduled[messageIndex].status = 'processing';
-          
-          // IMPORTANT: Keep the current number set while sending
-          sendingResults.current = item.number;
           
           // Send the message
           const result = await sendMessage(item.number, message);
@@ -764,6 +788,18 @@ function startScheduledSending(schedule, message, filePath) {
           
           // Update processed count
           sendingResults.processed++;
+          
+          // After processing, immediately update to show the next scheduled message
+          if (nextItem) {
+            const waitTime = nextItem.delay - item.delay;
+            const minutes = Math.floor(waitTime / 60000);
+            const seconds = Math.floor((waitTime % 60000) / 1000);
+            
+            sendingResults.current = `Next: ${nextItem.number} (in ${minutes}m ${seconds}s)`;
+            console.log(`Next scheduled: ${nextItem.number} in ${waitTime}ms`);
+          } else {
+            sendingResults.current = `Completed: ${item.number} (last message)`;
+          }
         }
       } catch (error) {
         console.error(`Error processing scheduled message to ${item.number}:`, error);
@@ -786,12 +822,16 @@ function startScheduledSending(schedule, message, filePath) {
         if (messageIndex !== -1) {
           sendingResults.scheduled[messageIndex].status = 'failed';
         }
-      } finally {
-        // Delay clearing the current number to allow UI to display it longer
-        // Use a small timeout to keep the number displayed for a short time after sending
-        setTimeout(() => {
-          sendingResults.current = null;
-        }, 1500); // Keep the number visible for 1.5 seconds after processing
+        
+        // Even after error, update to show the next scheduled message
+        if (nextItem) {
+          const waitTime = nextItem.delay - item.delay;
+          const minutes = Math.floor(waitTime / 60000);
+          const seconds = Math.floor((waitTime % 60000) / 1000);
+          
+          sendingResults.current = `Next: ${nextItem.number} (in ${minutes}m ${seconds}s)`;
+          console.log(`Next scheduled after error: ${nextItem.number} in ${waitTime}ms`);
+        }
       }
     }, item.delay);
     
@@ -823,18 +863,18 @@ async function processMessages(numbers, message, filePath) {
       }
       
       const number = numbers[i];
+      const nextIndex = i + 1;
+      const nextNumber = nextIndex < numbers.length ? numbers[nextIndex] : null;
       
-      // Update current number with additional info
+      // Always update current number first, before processing
       sendingResults.current = number;
+      console.log(`Setting current number to: ${number}`);
       
       try {
         console.log(`Sending message to ${number} (${i+1}/${numbers.length})`);
         
         // Send the message
         const result = await sendMessage(number, message);
-        
-        // Keep the current number set for longer to ensure UI can show it
-        sendingResults.current = number;
         
         // Update results
         if (result.success) {
@@ -863,8 +903,11 @@ async function processMessages(numbers, message, filePath) {
       // Update processed count
       sendingResults.processed++;
       
-      // Do not clear current number between messages - leave it set for the UI
-      // This ensures we always show the most recently processed number
+      // Immediately update to show next number if available
+      if (nextNumber) {
+        sendingResults.current = `Next: ${nextNumber}`;
+        console.log(`Setting current to next number: ${nextNumber}`);
+      }
       
       // Small delay between messages to avoid rate limiting
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -886,7 +929,7 @@ async function processMessages(numbers, message, filePath) {
     setTimeout(() => {
       // Only clear if we're done processing
       if (sendingResults.processed >= sendingResults.total) {
-        sendingResults.current = null;
+        sendingResults.current = "Processing completed";
       }
       
       // Restore original scheduling status

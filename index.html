@@ -593,6 +593,42 @@
             border-left: 3px solid #128C7E;
         }
         
+        /* Different status styles */
+        .current-processing-number.processing-active {
+            color: #128C7E; /* WhatsApp green */
+            background-color: rgba(18, 140, 126, 0.1);
+            border-left-color: #128C7E;
+            animation: processing-pulse 1.5s infinite;
+        }
+        
+        .current-processing-number.next-active {
+            color: #0D7377; /* Teal */
+            background-color: rgba(13, 115, 119, 0.1);
+            border-left-color: #0D7377;
+            animation: none;
+        }
+        
+        .current-processing-number.scheduled-active {
+            color: #6C757D; /* Gray */
+            background-color: rgba(108, 117, 125, 0.1);
+            border-left-color: #6C757D;
+            animation: none;
+        }
+        
+        .current-processing-number.imminent-active {
+            color: #FF9800; /* Orange */
+            background-color: rgba(255, 152, 0, 0.1);
+            border-left-color: #FF9800;
+            animation: processing-pulse 1s infinite;
+        }
+        
+        .current-processing-number.completed-active {
+            color: #28A745; /* Success green */
+            background-color: rgba(40, 167, 69, 0.1);
+            border-left-color: #28A745;
+            animation: none;
+        }
+        
         .processing-active {
             font-weight: 500;
         }
@@ -871,76 +907,158 @@
             async function checkActiveProcessesOnLoad() {
                 console.log('Checking for active processes on page load...');
                 
-                // First, try to restore any saved current processing number
-                const storedNumber = localStorage.getItem('currentProcessingNumber');
-                const lastUpdateTime = localStorage.getItem('lastUpdateTime');
+                // First attempt to restore data from localStorage
+                const storedData = localStorage.getItem('sendingResults');
+                const lastUpdate = localStorage.getItem('lastStatusUpdate');
                 const now = new Date().getTime();
                 
-                // If we have a stored number that was updated recently (within last 30 seconds)
-                if (storedNumber && lastUpdateTime && (now - lastUpdateTime < 30000)) {
-                    console.log('Restoring current processing number from local storage:', storedNumber);
-                    currentNumber.innerHTML = `Processing: <span class="current-processing-number">${storedNumber}</span>`;
-                    currentNumber.classList.add('processing-active');
+                // Check if we have recent stored data (within the last 2 minutes)
+                if (storedData && lastUpdate && (now - parseInt(lastUpdate) < 120000)) {
+                    console.log('Restoring state from localStorage');
+                    
+                    try {
+                        // Parse the stored data
+                        const data = JSON.parse(storedData);
+                        
+                        // Show progress container to make everything visible
+                        progressContainer.style.display = 'block';
+                        
+                        // Restore current number if available
+                        if (data.current) {
+                            // Parse the current number
+                            let displayNumber = '';
+                            let statusPrefix = '';
+                            
+                            if (data.current.includes(':')) {
+                                const parts = data.current.split(':');
+                                statusPrefix = parts[0].trim();
+                                let remaining = parts[1].trim();
+                                if (remaining.includes('(')) {
+                                    displayNumber = remaining.substring(0, remaining.indexOf('(')).trim();
+                                } else {
+                                    displayNumber = remaining;
+                                }
+                            } else {
+                                displayNumber = data.current;
+                                statusPrefix = 'Processing';
+                            }
+                            
+                            // Apply appropriate styling based on status prefix
+                            let statusClass = '';
+                            switch (statusPrefix.toLowerCase()) {
+                                case 'processing':
+                                    statusClass = 'processing-active';
+                                    break;
+                                case 'next':
+                                    statusClass = 'next-active';
+                                    break;
+                                case 'scheduled':
+                                    statusClass = 'scheduled-active';
+                                    break;
+                                case 'processing soon':
+                                    statusClass = 'imminent-active';
+                                    break;
+                                case 'completed':
+                                    statusClass = 'completed-active';
+                                    break;
+                                default:
+                                    statusClass = 'processing-active';
+                            }
+                            
+                            // Update the UI
+                            currentNumber.innerHTML = `${statusPrefix}: <span class="current-processing-number ${statusClass}">${displayNumber}</span>`;
+                            currentNumber.classList.add('processing-active');
+                        }
+                        
+                        // Restore counts
+                        totalCount.textContent = data.total || '0';
+                        successCount.textContent = data.success ? data.success.length : '0';
+                        failedCount.textContent = data.failed ? data.failed.length : '0';
+                        
+                        // Restore progress
+                        if (data.total > 0) {
+                            const progress = Math.round((data.processed / data.total) * 100) || 0;
+                            progressBar.style.width = `${progress}%`;
+                            progressBar.textContent = `${progress}%`;
+                            progressText.textContent = `${data.processed}/${data.total} (${progress}%)`;
+                        }
+                        
+                        // Restore success/failed lists
+                        updateStatusLists(data);
+                        
+                        // If scheduling info exists, restore scheduled messages and upcoming list
+                        if (data.scheduleInfo) {
+                            // Show scheduled info section
+                            document.getElementById('scheduled-info').style.display = 'block';
+                            
+                            // Make scheduled column visible
+                            const scheduledColumn = document.getElementById('scheduled-column');
+                            if (scheduledColumn) scheduledColumn.style.display = 'block';
+                            
+                            // Create schedule display data from the stored data
+                            const scheduleDisplayData = {
+                                active: true,
+                                startTime: data.scheduleInfo.startTime,
+                                endTime: data.scheduleInfo.endTime,
+                                upcomingMessages: data.scheduleInfo.upcomingMessages || []
+                            };
+                            
+                            // Update the schedule display
+                            updateScheduleDisplay(scheduleDisplayData);
+                            
+                            // Update upcoming messages list
+                            if (data.scheduleInfo.upcomingMessages && data.scheduleInfo.upcomingMessages.length > 0) {
+                                updateUpcomingMessagesList(data.scheduleInfo.upcomingMessages);
+                            }
+                            
+                            // Update scheduled count
+                            if (data.scheduled) {
+                                const scheduledItems = data.scheduled.filter(item => item.status === 'scheduled');
+                                scheduledCount.textContent = scheduledItems.length;
+                            }
+                        }
+                        
+                        // Show the message form if processing is complete, otherwise hide it
+                        if (data.processed >= data.total) {
+                            messageForm.style.display = 'block';
+                        } else {
+                            messageForm.style.display = 'none';
+                            // Start polling for updates if processing is still ongoing
+                            startStatusPolling();
+                        }
+                        
+                        // If we have data in localStorage, prioritize that and return
+                        // We'll still check the server in the background
+                        console.log('Successfully restored state from localStorage');
+                    } catch (error) {
+                        console.error('Error parsing localStorage data:', error);
+                    }
                 }
                 
                 try {
-                    // First check if WhatsApp is connected
+                    // Check if WhatsApp is connected
                     const sessionResponse = await fetch('/check-session');
                     const sessionData = await sessionResponse.json();
                     
                     if (sessionData.status === 'connected') {
                         console.log('WhatsApp is connected, checking for active processes...');
                         
-                        // Check for scheduled messages separately first, as our primary concern
-                        const scheduledResponse = await fetch('/scheduled-messages');
-                        if (scheduledResponse.ok) {
-                            const scheduledData = await scheduledResponse.json();
-                            
-                            // Show scheduled messages even if they're not currently "active"
-                            if (scheduledData.messages && scheduledData.messages.length > 0) {
-                                console.log('Found scheduled messages, displaying in real-time');
-                                
-                                // Show progress container
-                                progressContainer.style.display = 'block';
-                                
-                                // Make the scheduled info section visible
-                                document.getElementById('scheduled-info').style.display = 'block';
-                                
-                                // Display scheduled messages card
-                                scheduledMessagesCard.style.display = 'block';
-                                displayScheduledMessages(scheduledData);
-                                
-                                // Make sure the upcoming messages are shown
-                                updateUpcomingMessagesList(scheduledData.messages);
-                                
-                                // Create schedule display data
-                                const scheduleDisplayData = {
-                                    active: true,
-                                    startTime: scheduledData.startTime,
-                                    endTime: scheduledData.endTime,
-                                    upcomingMessages: scheduledData.messages
-                                };
-                                
-                                // Update schedule display
-                                updateScheduleDisplay(scheduleDisplayData);
-                                
-                                // Start polling for updates if not already started
-                                if (!statusUpdateInterval) {
-                                    startStatusPolling();
-                                }
-                                
-                                return; // Exit early since we've handled scheduled messages
-                            }
-                        }
-                        
-                        // If we're here, we didn't find scheduled messages, so check active processes
+                        // Check for active processes first to get the current processing number
                         const statusResponse = await fetch('/message-status');
                         if (statusResponse.ok) {
                             const data = await statusResponse.json();
                             console.log('Current message status:', data);
                             
+                            // Store the data in localStorage for persistence
+                            localStorage.setItem('sendingResults', JSON.stringify(data));
+                            localStorage.setItem('lastStatusUpdate', new Date().getTime());
+                            
                             // If there are active processes or scheduled messages, show the progress UI
-                            if (data.total > 0 || (data.scheduleInfo && data.scheduleInfo.upcomingMessages && data.scheduleInfo.upcomingMessages.length > 0)) {
+                            if (data.total > 0 || 
+                                (data.scheduleInfo && data.scheduleInfo.upcomingMessages && data.scheduleInfo.upcomingMessages.length > 0) ||
+                                (data.success && data.success.length > 0) || 
+                                (data.failed && data.failed.length > 0)) {
+                                
                                 // Hide message form and show progress
                                 statusMessage.style.display = 'none';
                                 messageForm.style.display = 'none';
@@ -951,20 +1069,72 @@
                                 successCount.textContent = data.success ? data.success.length : '0';
                                 failedCount.textContent = data.failed ? data.failed.length : '0';
                                 
+                                // Show success and failure columns if they have data
+                                if (data.success && data.success.length > 0) {
+                                    const successColumn = document.getElementById('success-column');
+                                    if (successColumn) successColumn.style.display = 'block';
+                                }
+                                
+                                if (data.failed && data.failed.length > 0) {
+                                    const failedColumn = document.getElementById('failed-column');
+                                    if (failedColumn) failedColumn.style.display = 'block';
+                                }
+                                
                                 // If we have a current number, update the UI
                                 if (data.current) {
-                                    localStorage.setItem('currentProcessingNumber', data.current);
-                                    localStorage.setItem('lastUpdateTime', new Date().getTime());
+                                    // Parse the current number and status
+                                    let displayNumber = '';
+                                    let statusPrefix = '';
                                     
-                                    currentNumber.innerHTML = `Processing: <span class="current-processing-number">${data.current}</span>`;
+                                    if (data.current.includes(':')) {
+                                        const parts = data.current.split(':');
+                                        statusPrefix = parts[0].trim();
+                                        let remaining = parts[1].trim();
+                                        if (remaining.includes('(')) {
+                                            displayNumber = remaining.substring(0, remaining.indexOf('(')).trim();
+                                        } else {
+                                            displayNumber = remaining;
+                                        }
+                                    } else {
+                                        displayNumber = data.current;
+                                        statusPrefix = 'Processing';
+                                    }
+                                    
+                                    // Apply appropriate styling based on status prefix
+                                    let statusClass = '';
+                                    switch (statusPrefix.toLowerCase()) {
+                                        case 'processing':
+                                            statusClass = 'processing-active';
+                                            break;
+                                        case 'next':
+                                            statusClass = 'next-active';
+                                            break;
+                                        case 'scheduled':
+                                            statusClass = 'scheduled-active';
+                                            break;
+                                        case 'processing soon':
+                                            statusClass = 'imminent-active';
+                                            break;
+                                        case 'completed':
+                                            statusClass = 'completed-active';
+                                            break;
+                                        default:
+                                            statusClass = 'processing-active';
+                                    }
+                                    
+                                    // Update the UI with current number
+                                    currentNumber.innerHTML = `${statusPrefix}: <span class="current-processing-number ${statusClass}">${displayNumber}</span>`;
                                     currentNumber.classList.add('processing-active');
                                 }
                                 
                                 // If scheduling is active, show scheduled info
                                 if (data.scheduleInfo) {
-                                    // Always show scheduled info and column when we have schedule info
+                                    // Always show scheduled info section
                                     document.getElementById('scheduled-info').style.display = 'block';
-                                    scheduledColumn.style.display = 'block';
+                                    
+                                    // Make scheduled column visible
+                                    const scheduledColumn = document.getElementById('scheduled-column');
+                                    if (scheduledColumn) scheduledColumn.style.display = 'block';
                                     
                                     // Update scheduled count
                                     const scheduledItems = data.scheduled ? data.scheduled.filter(item => item.status === 'scheduled') : [];
@@ -987,7 +1157,13 @@
                                     }
                                 } else {
                                     // Standard mode
-                                    scheduledCount.textContent = data.total - data.processed;
+                                    scheduledCount.textContent = data.processed < data.total ? (data.total - data.processed) : '0';
+                                    
+                                    // Update progress bar
+                                    const progress = Math.round((data.processed / data.total) * 100) || 0;
+                                    progressBar.style.width = `${progress}%`;
+                                    progressBar.textContent = `${progress}%`;
+                                    progressText.textContent = `${data.processed}/${data.total} (${progress}%)`;
                                 }
                                 
                                 // Update status lists
@@ -997,6 +1173,49 @@
                                 startStatusPolling();
                                 
                                 console.log('Active process detected, UI restored and real-time updates started');
+                            }
+                        }
+                        
+                        // If we're here but no active processes found, check for scheduled messages
+                        const scheduledResponse = await fetch('/scheduled-messages');
+                        if (scheduledResponse.ok) {
+                            const scheduledData = await scheduledResponse.json();
+                            
+                            // Show scheduled messages even if they're not currently "active"
+                            if (scheduledData.messages && scheduledData.messages.length > 0) {
+                                console.log('Found scheduled messages, displaying in real-time');
+                                
+                                // Show progress container
+                                progressContainer.style.display = 'block';
+                                
+                                // Make the scheduled info section visible
+                                document.getElementById('scheduled-info').style.display = 'block';
+                                
+                                // Display scheduled messages card
+                                const scheduledMessagesCard = document.getElementById('scheduledMessagesCard');
+                                if (scheduledMessagesCard) scheduledMessagesCard.style.display = 'block';
+                                
+                                // Display scheduled messages
+                                displayScheduledMessages(scheduledData);
+                                
+                                // Make sure the upcoming messages are shown
+                                updateUpcomingMessagesList(scheduledData.messages);
+                                
+                                // Create schedule display data
+                                const scheduleDisplayData = {
+                                    active: true,
+                                    startTime: scheduledData.startTime,
+                                    endTime: scheduledData.endTime,
+                                    upcomingMessages: scheduledData.messages
+                                };
+                                
+                                // Update schedule display
+                                updateScheduleDisplay(scheduleDisplayData);
+                                
+                                // Start polling for updates if not already started
+                                if (!statusUpdateInterval) {
+                                    startStatusPolling();
+                                }
                             }
                         }
                     }
@@ -1450,113 +1669,167 @@
                 }, 24 * 60 * 60 * 1000); // 24 hours max
             }
 
-            // Improved poll function to ensure upcoming messages are shown immediately
+            // Function to poll for message sending status
             async function pollMessageStatus() {
                 try {
+                    if (document.hidden) {
+                        console.log('Document is hidden, pausing status polling');
+                        return;
+                    }
+                    
+                    console.log('Polling for message status...');
                     const response = await fetch('/message-status');
+                    
                     if (!response.ok) {
-                        throw new Error('Failed to fetch status');
+                        console.error('Failed to get message status:', response.statusText);
+                        return;
                     }
                     
                     const data = await response.json();
+                    console.log('Received message status data:', data);
                     
-                    // Always show progress container when data exists
-                    if (data.total > 0) {
+                    // Store the entire sending results in localStorage for persistence
+                    localStorage.setItem('sendingResults', JSON.stringify(data));
+                    localStorage.setItem('lastStatusUpdate', new Date().getTime());
+                    
+                    // Always show progress container when we have any data
+                    if (data.total > 0 || data.success?.length > 0 || data.failed?.length > 0 || 
+                        (data.scheduleInfo && data.scheduleInfo.upcomingMessages?.length > 0)) {
                         progressContainer.style.display = 'block';
-                        messageForm.style.display = 'none';
                     }
                     
-                    // Update current number with better visibility and animation effect
+                    // Update status lists for success and failed
+                    updateStatusLists(data);
+                    
+                    // Update total, success, and failure counts
+                    totalCount.textContent = data.total || '0';
+                    
+                    // Always update success and failure counts and make columns visible if there's data
+                    const successColumnCount = data.success ? data.success.length : 0;
+                    successCount.textContent = successColumnCount;
+                    if (successColumnCount > 0) {
+                        const successColumn = document.getElementById('success-column');
+                        if (successColumn) successColumn.style.display = 'block';
+                    }
+                    
+                    const failedColumnCount = data.failed ? data.failed.length : 0;
+                    failedCount.textContent = failedColumnCount;
+                    if (failedColumnCount > 0) {
+                        const failedColumn = document.getElementById('failed-column');
+                        if (failedColumn) failedColumn.style.display = 'block';
+                    }
+                    
+                    // If we have a current processing number, update the display
                     if (data.current) {
-                        // Store the current number in localStorage for persistence across refreshes
-                        localStorage.setItem('currentProcessingNumber', data.current);
-                        localStorage.setItem('lastUpdateTime', new Date().getTime());
+                        // Parse the current number
+                        let displayNumber = '';
+                        let statusPrefix = '';
                         
-                        // Add animation and emphasis to the current number
-                        currentNumber.innerHTML = `Processing: <span class="current-processing-number">${data.current}</span>`;
-                        currentNumber.classList.add('processing-active');
-                        
-                        // Also update the page title to show currently processing number
-                        document.title = `Processing: ${data.current} - WhatsApp Bulk Messenger`;
-                    } else if (data.processed < data.total) {
-                        // If there's no current number but processing is still ongoing
-                        // Try to use the stored number from localStorage if it exists and is recent
-                        const storedNumber = localStorage.getItem('currentProcessingNumber');
-                        const lastUpdateTime = localStorage.getItem('lastUpdateTime');
-                        const now = new Date().getTime();
-                        
-                        // Only use stored number if it was updated in the last 10 seconds
-                        if (storedNumber && lastUpdateTime && (now - lastUpdateTime < 10000)) {
-                            currentNumber.innerHTML = `Processing: <span class="current-processing-number">${storedNumber}</span>`;
-                            currentNumber.classList.add('processing-active');
+                        if (data.current.includes(':')) {
+                            const parts = data.current.split(':');
+                            statusPrefix = parts[0].trim();
+                            let remaining = parts[1].trim();
+                            if (remaining.includes('(')) {
+                                displayNumber = remaining.substring(0, remaining.indexOf('(')).trim();
+                            } else {
+                                displayNumber = remaining;
+                            }
                         } else {
-                            currentNumber.textContent = 'Processing: Waiting for next message...';
-                            currentNumber.classList.remove('processing-active');
+                            displayNumber = data.current;
+                            statusPrefix = 'Processing';
                         }
                         
-                        document.title = 'WhatsApp Bulk Messenger - Processing';
-                    } else if (data.total > 0 && data.processed >= data.total) {
-                        // All processing is complete
-                        currentNumber.textContent = 'Processing: Completed';
-                        currentNumber.classList.remove('processing-active');
-                        document.title = 'Completed - WhatsApp Bulk Messenger';
-                        localStorage.removeItem('currentProcessingNumber');
-                        localStorage.removeItem('lastUpdateTime');
+                        // Apply appropriate styling based on status prefix
+                        let statusClass = '';
+                        switch (statusPrefix.toLowerCase()) {
+                            case 'processing':
+                                statusClass = 'processing-active';
+                                break;
+                            case 'next':
+                                statusClass = 'next-active';
+                                break;
+                            case 'scheduled':
+                                statusClass = 'scheduled-active';
+                                break;
+                            case 'processing soon':
+                                statusClass = 'imminent-active';
+                                break;
+                            case 'completed':
+                                statusClass = 'completed-active';
+                                break;
+                            default:
+                                statusClass = 'processing-active';
+                        }
+                        
+                        // Update UI with the current number
+                        currentNumber.innerHTML = `${statusPrefix}: <span class="current-processing-number ${statusClass}">${displayNumber}</span>`;
+                        currentNumber.classList.add('processing-active');
+                        
+                        // Update page title to show what's happening
+                        document.title = `${statusPrefix}: ${displayNumber} - WhatsApp Bulk Messenger`;
                     } else {
+                        // If no current number, show "None" with appropriate styling
+                        currentNumber.innerHTML = 'Processing: <span class="current-processing-number">None</span>';
                         currentNumber.classList.remove('processing-active');
                         document.title = 'WhatsApp Bulk Messenger';
-                        localStorage.removeItem('currentProcessingNumber');
-                        localStorage.removeItem('lastUpdateTime');
                     }
                     
-                    // Update counts
-                    successCount.textContent = data.success.length;
-                    failedCount.textContent = data.failed.length;
-                    
-                    // If we have scheduling info, update the UI immediately
+                    // Check for scheduling mode
                     if (data.scheduleInfo) {
                         // Show scheduled info section
                         document.getElementById('scheduled-info').style.display = 'block';
-                        progressContainer.style.display = 'block'; // Force progress container to be visible
-                        scheduledColumn.style.display = 'block';
                         
-                        // Update the schedule display with all upcoming messages
-                        updateScheduleDisplay(data);
+                        // Make scheduled column visible
+                        const scheduledColumn = document.getElementById('scheduled-column');
+                        if (scheduledColumn) scheduledColumn.style.display = 'block';
                         
-                        // Force update of upcoming messages list every time new data arrives
+                        // Create schedule display data from the response
+                        const scheduleDisplayData = {
+                            active: true,
+                            startTime: data.scheduleInfo.startTime,
+                            endTime: data.scheduleInfo.endTime,
+                            upcomingMessages: data.scheduleInfo.upcomingMessages || []
+                        };
+                        
+                        // Update the scheduled display
+                        updateScheduleDisplay(scheduleDisplayData);
+                        
+                        // Update the upcoming messages list
                         if (data.scheduleInfo.upcomingMessages && data.scheduleInfo.upcomingMessages.length > 0) {
-                            // Make sure the container is visible
-                            const upcomingMessagesContainer = document.querySelector('.all-messages-status');
-                            if (upcomingMessagesContainer) {
-                                upcomingMessagesContainer.style.display = 'block';
-                            }
-                            
                             updateUpcomingMessagesList(data.scheduleInfo.upcomingMessages);
                         }
-                    } else {
-                        // Standard mode
-                        scheduledCount.textContent = data.total - data.processed;
                         
-                        // Update progress bar
-                        const progress = Math.round((data.processed / data.total) * 100) || 0;
-                        progressBar.style.width = `${progress}%`;
-                        progressBar.textContent = `${progress}%`;
-                        progressText.textContent = `${data.processed}/${data.total} (${progress}%)`;
+                        // Update scheduled count
+                        if (data.scheduled) {
+                            const scheduledItems = data.scheduled.filter(item => item.status === 'scheduled');
+                            scheduledCount.textContent = scheduledItems.length;
+                        }
+                    } else {
+                        // Regular mode - update progress bar
+                        if (data.total > 0) {
+                            const progress = Math.round((data.processed / data.total) * 100) || 0;
+                            progressBar.style.width = `${progress}%`;
+                            progressBar.textContent = `${progress}%`;
+                            progressText.textContent = `${data.processed}/${data.total} (${progress}%)`;
+                            
+                            // Update scheduled count (remaining to process)
+                            scheduledCount.textContent = data.processed < data.total ? (data.total - data.processed) : '0';
+                        }
                     }
                     
-                    // Update success and failed lists
-                    updateStatusLists(data);
-                    
-                    // Check if process is complete
-                    if (data.processed >= data.total && data.total > 0) {
-                        clearInterval(statusUpdateInterval);
-                        statusUpdateInterval = null;
-                        finishSending('completed');
-                        document.title = 'Completed - WhatsApp Bulk Messenger';
+                    // Check if messages are still processing or all done
+                    if (data.total === 0 || data.processed >= data.total) {
+                        // Processing complete
+                        if (!data.scheduleInfo || (data.scheduleInfo && data.scheduleInfo.upcomingMessages.length === 0)) {
+                            // No scheduled messages remaining, show the message form
+                            messageForm.style.display = 'block';
+                        }
+                    } else {
+                        // Still processing, hide the message form
+                        messageForm.style.display = 'none';
                     }
                 } catch (error) {
-                    console.error('Error polling for status:', error);
-                    // Don't stop polling on error
+                    console.error('Error polling for message status:', error);
                 }
             }
 
