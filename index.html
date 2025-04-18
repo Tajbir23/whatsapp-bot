@@ -902,12 +902,91 @@
             // Add persistence flag
             let processingActive = false;
 
-            // Check for active processes immediately when page loads
-            checkActiveProcessesOnLoad();
+            // Initially hide all feature elements until connection is verified
+            messageForm.style.display = 'none';
+            progressContainer.style.display = 'none';
+            document.getElementById('scheduled-info').style.display = 'none';
+            document.getElementById('scheduledMessagesCard').style.display = 'none';
+            document.getElementById('results').style.display = 'none';
+            if (scheduledColumn) scheduledColumn.style.display = 'none';
+
+            // Function to verify WhatsApp connection and update UI accordingly
+            async function verifyWhatsAppConnection() {
+                console.log('Verifying WhatsApp connection status...');
+                try {
+                    const response = await fetch('/check-session');
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to check session status');
+                    }
+                    
+                    const data = await response.json();
+                    console.log('Session status:', data.status);
+                    
+                    if (data.status === 'connected') {
+                        // Connected state - show all functionality
+                        statusMessage.textContent = 'Connected to WhatsApp';
+                        statusMessage.className = 'status success';
+                        connectBtn.style.display = 'none';
+                        logoutBtn.style.display = 'inline-block';
+                        messageForm.style.display = 'block';
+                        qrContainer.style.display = 'none';
+                        
+                        // Allow active processes to be checked
+                        return true;
+                    } else {
+                        // Disconnected state - hide all functionality
+                        statusMessage.textContent = 'Not connected to WhatsApp';
+                        statusMessage.className = 'status';
+                        connectBtn.style.display = 'inline-block';
+                        logoutBtn.style.display = 'none';
+                        messageForm.style.display = 'none';
+                        qrContainer.style.display = 'block';
+                        
+                        // Hide all feature containers when disconnected
+                        progressContainer.style.display = 'none';
+                        document.getElementById('scheduled-info').style.display = 'none';
+                        document.getElementById('scheduledMessagesCard').style.display = 'none';
+                        document.getElementById('results').style.display = 'none';
+                        
+                        // Hide scheduled column if visible
+                        const scheduledColumn = document.getElementById('scheduled-column');
+                        if (scheduledColumn) scheduledColumn.style.display = 'none';
+                        
+                        // Stop any ongoing polling
+                        if (statusUpdateInterval) {
+                            clearInterval(statusUpdateInterval);
+                            statusUpdateInterval = null;
+                        }
+                        
+                        return false;
+                    }
+                } catch (error) {
+                    console.error('Error checking session:', error);
+                    statusMessage.textContent = 'Error checking connection status';
+                    statusMessage.className = 'status error';
+                    return false;
+                }
+            }
+
+            // Check WhatsApp connection and show appropriate UI
+            verifyWhatsAppConnection().then(isConnected => {
+                if (isConnected) {
+                    // Only check for active processes if connected
+                    checkActiveProcessesOnLoad();
+                }
+            });
 
             // Function to check for active processes when page loads
             async function checkActiveProcessesOnLoad() {
                 console.log('Checking for active processes on page load...');
+                
+                // Verify WhatsApp connection first
+                const isConnected = await verifyWhatsAppConnection();
+                if (!isConnected) {
+                    console.log('WhatsApp not connected, skipping active process check');
+                    return;
+                }
                 
                 // First attempt to restore data from localStorage
                 const storedData = localStorage.getItem('sendingResults');
@@ -1739,6 +1818,16 @@
             // Function to poll for message sending status
             async function pollMessageStatus() {
                 try {
+                    // Verify WhatsApp connection first
+                    const isConnected = await verifyWhatsAppConnection();
+                    if (!isConnected) {
+                        console.log('WhatsApp not connected, stopping status polling');
+                        clearInterval(statusUpdateInterval);
+                        statusUpdateInterval = null;
+                        document.removeEventListener('visibilitychange', handleVisibilityChange);
+                        return;
+                    }
+                    
                     // Don't skip polling even when hidden, just reduce frequency
                     if (document.hidden) {
                         console.log('Document is hidden, reducing polling frequency');
@@ -1993,7 +2082,7 @@
                     const stopScheduleBtn = document.getElementById('stop-schedule');
                     if (stopScheduleBtn) {
                         stopScheduleBtn.style.display = 'none';
-                    stopScheduleBtn.textContent = 'Schedule Stopped';
+                stopScheduleBtn.textContent = 'Schedule Stopped';
                 }
                 }
                 
