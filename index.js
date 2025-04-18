@@ -37,9 +37,6 @@ let scheduleStartTime = null;
 let scheduleEndTime = null;
 let isScheduleStopped = false;
 
-// Maximum number of messages that can be scheduled in 24 hours
-const MAX_SCHEDULED_MESSAGES = 300;
-
 // Route to serve the HTML file
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
@@ -232,9 +229,9 @@ app.post('/send-messages', upload.single('numbersFile'), async (req, res) => {
     // Check if using schedule mode
     const shouldSchedule = useSchedule === 'true';
     
-    // If scheduling and too many numbers, limit the count
+    // Process all numbers without limitation
     const processNumbers = shouldSchedule 
-      ? phoneNumbers.slice(0, MAX_SCHEDULED_MESSAGES) 
+      ? phoneNumbers 
       : phoneNumbers;
     
     // Initialize the sending results
@@ -320,16 +317,39 @@ app.get('/message-status', (req, res) => {
       isScheduleStopped: isScheduleStopped
     };
     
-    // Add the next scheduled message if any
+    // Add all scheduled messages with their status and time info
     if (sendingResults.scheduled && sendingResults.scheduled.length > 0) {
-      // Find the next unprocessed message
-      const nextScheduled = sendingResults.scheduled.find(item => item.status === 'scheduled');
-      if (nextScheduled) {
-        scheduleInfo.nextMessage = {
-          number: nextScheduled.number,
-          scheduledTime: nextScheduled.scheduledTime,
-          timeUntil: new Date(nextScheduled.scheduledTime) - now
-        };
+      // Sort scheduled messages by time
+      const sortedScheduled = [...sendingResults.scheduled]
+        .filter(item => item.status === 'scheduled')
+        .sort((a, b) => new Date(a.scheduledTime) - new Date(b.scheduledTime));
+      
+      // Find the next message to be sent
+      const nextScheduled = sortedScheduled.length > 0 ? sortedScheduled[0] : null;
+      
+      // Add to schedule info
+      scheduleInfo.nextMessage = nextScheduled ? {
+        number: nextScheduled.number,
+        scheduledTime: nextScheduled.scheduledTime,
+        timeUntil: new Date(nextScheduled.scheduledTime) - now,
+        formattedTimeUntil: formatTimeUntil(new Date(nextScheduled.scheduledTime) - now)
+      } : null;
+      
+      // Add all upcoming messages with their time info
+      scheduleInfo.upcomingMessages = sortedScheduled.map(msg => ({
+        id: msg.id,
+        number: msg.number,
+        scheduledTime: msg.scheduledTime,
+        timeUntil: new Date(msg.scheduledTime) - now,
+        formattedTimeUntil: formatTimeUntil(new Date(msg.scheduledTime) - now)
+      }));
+      
+      // Find the currently processing message if current is not set
+      if (!sendingResults.current) {
+        const processingMessage = sendingResults.scheduled.find(item => item.status === 'processing');
+        if (processingMessage) {
+          sendingResults.current = processingMessage.number;
+        }
       }
     }
     
@@ -338,9 +358,45 @@ app.get('/message-status', (req, res) => {
       scheduleInfo
     });
   } else {
+    // For non-scheduled mode, check if we need to find the currently processing message
+    if (!sendingResults.current && sendingResults.total > 0 && sendingResults.processed < sendingResults.total) {
+      // If there's no current message but processing is ongoing, check the most recent success/failed
+      const latestSuccess = sendingResults.success.length > 0 ? 
+        sendingResults.success[sendingResults.success.length - 1] : null;
+      const latestFailed = sendingResults.failed.length > 0 ? 
+        sendingResults.failed[sendingResults.failed.length - 1] : null;
+      
+      // Compare timestamps to find the most recent message
+      if (latestSuccess && latestFailed) {
+        const successTime = new Date(latestSuccess.timestamp).getTime();
+        const failedTime = new Date(latestFailed.timestamp).getTime();
+        if (successTime > failedTime) {
+          // Calculate the next number (assuming success was the last one processed)
+          sendingResults.current = `Next after ${latestSuccess.number}`;
+        } else {
+          sendingResults.current = `Next after ${latestFailed.number}`;
+        }
+      } else if (latestSuccess) {
+        sendingResults.current = `Next after ${latestSuccess.number}`;
+      } else if (latestFailed) {
+        sendingResults.current = `Next after ${latestFailed.number}`;
+      }
+    }
+    
     res.json(sendingResults);
   }
 });
+
+// Helper function to format time until message sending
+function formatTimeUntil(timeMs) {
+  if (timeMs <= 0) return "Sending now";
+  
+  const seconds = Math.floor((timeMs / 1000) % 60);
+  const minutes = Math.floor((timeMs / (1000 * 60)) % 60);
+  const hours = Math.floor((timeMs / (1000 * 60 * 60)) % 24);
+  
+  return `${hours}h ${minutes}m ${seconds}s`;
+}
 
 // Route to stop scheduled sending
 app.get('/stop-schedule', (req, res) => {
@@ -659,7 +715,8 @@ function startScheduledSending(schedule, message, filePath) {
         return;
       }
       
-      // Update current status
+      // Set the current number being processed in the sending results for real-time UI updates
+      // This ensures the UI shows which number is being processed
       sendingResults.current = item.number;
       
       try {
@@ -678,6 +735,9 @@ function startScheduledSending(schedule, message, filePath) {
         if (messageIndex !== -1) {
           // Update message status to processing
           sendingResults.scheduled[messageIndex].status = 'processing';
+          
+          // IMPORTANT: Keep the current number set while sending
+          sendingResults.current = item.number;
           
           // Send the message
           const result = await sendMessage(item.number, message);
@@ -727,8 +787,11 @@ function startScheduledSending(schedule, message, filePath) {
           sendingResults.scheduled[messageIndex].status = 'failed';
         }
       } finally {
-        // Clear current status
-        sendingResults.current = null;
+        // Delay clearing the current number to allow UI to display it longer
+        // Use a small timeout to keep the number displayed for a short time after sending
+        setTimeout(() => {
+          sendingResults.current = null;
+        }, 1500); // Keep the number visible for 1.5 seconds after processing
       }
     }, item.delay);
     
@@ -761,7 +824,7 @@ async function processMessages(numbers, message, filePath) {
       
       const number = numbers[i];
       
-      // Update current number
+      // Update current number with additional info
       sendingResults.current = number;
       
       try {
@@ -769,6 +832,9 @@ async function processMessages(numbers, message, filePath) {
         
         // Send the message
         const result = await sendMessage(number, message);
+        
+        // Keep the current number set for longer to ensure UI can show it
+        sendingResults.current = number;
         
         // Update results
         if (result.success) {
@@ -797,6 +863,9 @@ async function processMessages(numbers, message, filePath) {
       // Update processed count
       sendingResults.processed++;
       
+      // Do not clear current number between messages - leave it set for the UI
+      // This ensures we always show the most recently processed number
+      
       // Small delay between messages to avoid rate limiting
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
@@ -813,10 +882,16 @@ async function processMessages(numbers, message, filePath) {
   } catch (error) {
     console.error('Error in processMessages:', error);
   } finally {
-    // Clear current status
-    sendingResults.current = null;
-    // Restore original scheduling status
-    isScheduling = wasScheduling;
+    // Delay clearing the current status to allow the UI to show it longer
+    setTimeout(() => {
+      // Only clear if we're done processing
+      if (sendingResults.processed >= sendingResults.total) {
+        sendingResults.current = null;
+      }
+      
+      // Restore original scheduling status
+      isScheduling = wasScheduling;
+    }, 2000); // Keep the number visible for 2 seconds after completing
   }
 }
 
@@ -1111,7 +1186,7 @@ async function sendMessage(phoneNumber, message) {
     
     console.log(`Sending message to ${phoneNumber} (formatted: ${formattedNumber})`);
     
-    // Send the message
+    // Send the original message without modification
     await whatsappClient.sendText(formattedNumber, message);
     
     console.log(`Successfully sent message to ${phoneNumber}`);
