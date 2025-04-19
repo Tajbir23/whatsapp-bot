@@ -401,12 +401,37 @@ function formatTimeUntil(timeMs) {
 // Route to stop scheduled sending
 app.get('/stop-schedule', (req, res) => {
   try {
+    // Get count of remaining scheduled messages before clearing
+    const remainingScheduled = sendingResults.scheduled.filter(item => item.status === 'scheduled').length;
+    
+    // Stop the schedule
     isScheduleStopped = true;
     clearAllSchedules();
     
+    // Clean up uploaded files
+    cleanUploadsDirectory();
+    
+    // Reset scheduling state
+    isScheduling = false;
+    scheduleStartTime = null;
+    scheduleEndTime = null;
+    
+    // Reset sending results while preserving processed data for display
+    // This creates a clean state but keeps the sent/failed messages for reference
+    sendingResults = {
+      success: sendingResults.success || [],
+      failed: sendingResults.failed || [],
+      scheduled: [],
+      current: null,
+      total: sendingResults.total || 0,
+      processed: sendingResults.processed || 0
+    };
+    
+    console.log('Schedule stopped, all cached data cleared');
+    
     res.json({ 
-      message: 'Scheduled message sending stopped',
-      remainingScheduled: sendingResults.scheduled.filter(item => item.status === 'scheduled').length
+      message: 'Scheduled message sending stopped and all data cleared',
+      remainingScheduled: remainingScheduled
     });
   } catch (error) {
     console.error('Error stopping schedule:', error);
@@ -842,7 +867,9 @@ function startScheduledSending(schedule, message, filePath) {
 
 // Process messages synchronously
 async function processMessages(numbers, message, filePath) {
+  
   // Save original current status
+  
   const wasScheduling = isScheduling;
   isScheduling = false;
   
@@ -873,8 +900,9 @@ async function processMessages(numbers, message, filePath) {
       try {
         console.log(`Sending message to ${number} (${i+1}/${numbers.length})`);
         
+        const uniqueMessage = `${message} /n /n ${number}`
         // Send the message
-        const result = await sendMessage(number, message);
+        const result = await sendMessage(number, uniqueMessage);
         
         // Update results
         if (result.success) {

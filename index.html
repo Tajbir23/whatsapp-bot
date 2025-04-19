@@ -1566,7 +1566,7 @@
                     // Update UI to reflect that schedule is stopped
                     const notification = document.createElement('div');
                     notification.className = 'alert alert-warning';
-                    notification.textContent = `Schedule stopped. ${data.remainingScheduled} messages will not be sent.`;
+                    notification.textContent = `Schedule stopped and all data cleared. ${data.remainingScheduled} messages will not be sent.`;
                     
                     // Insert notification above the scheduled info container
                     const scheduledInfo = document.getElementById('scheduled-info');
@@ -1577,8 +1577,26 @@
                         notification.style.display = 'none';
                     }, 10000);
                     
+                    // Clear the upcoming messages list
+                    const upcomingMessagesList = document.getElementById('upcoming-messages-list');
+                    if (upcomingMessagesList) {
+                        upcomingMessagesList.innerHTML = '<div class="text-muted text-center p-3">No scheduled messages</div>';
+                    }
+                    
+                    // Reset other UI elements
+                    const scheduledMessagesCount = document.getElementById('scheduledMessagesCount');
+                    if (scheduledMessagesCount) {
+                        scheduledMessagesCount.textContent = '0';
+                    }
+                    
+                    // Reset next message info
+                    const nextMessage = document.getElementById('next-message');
+                    if (nextMessage) {
+                        nextMessage.innerHTML = '<i class="fas fa-clock me-2"></i> Next message in: --:--:--';
+                    }
+                    
                 } catch (error) {
-                            console.error('Error stopping schedule:', error);
+                    console.error('Error stopping schedule:', error);
                     stopScheduleBtn.disabled = false;
                     stopScheduleBtn.textContent = 'Stop Schedule';
                     
@@ -2082,7 +2100,7 @@
                     const stopScheduleBtn = document.getElementById('stop-schedule');
                     if (stopScheduleBtn) {
                         stopScheduleBtn.style.display = 'none';
-                    stopScheduleBtn.textContent = 'Schedule Stopped';
+                stopScheduleBtn.textContent = 'Schedule Stopped';
                 }
                 }
                 
